@@ -83,7 +83,7 @@ enum PreviewDuration: Int, CaseIterable, Identifiable {
     case forever = 0
 
     var id: Int { rawValue }
-    var title: String { self == .forever ? "Until closed" : "\(rawValue)s" }
+    var title: String { self == .forever ? "Until closed" : "\(rawValue) seconds" }
     var interval: TimeInterval? { self == .forever ? nil : TimeInterval(rawValue) }
 }
 
@@ -102,6 +102,7 @@ final class AppSettings: ObservableObject {
         static let folder = "saveFolderPath"
         static let sound = "playSound"
         static let shadow = "includeWindowShadow"
+        static let openEditor = "openEditorAfterCapture"
         static let shortcuts = "shortcuts"
         static let launched = "hasLaunchedBefore"
     }
@@ -127,6 +128,9 @@ final class AppSettings: ObservableObject {
     @Published var includeWindowShadow: Bool {
         didSet { defaults.set(includeWindowShadow, forKey: Key.shadow) }
     }
+    @Published var openEditorAfterCapture: Bool {
+        didSet { defaults.set(openEditorAfterCapture, forKey: Key.openEditor) }
+    }
     @Published private(set) var shortcuts: [ShortcutAction: Shortcut] {
         didSet { saveShortcuts() }
     }
@@ -139,6 +143,7 @@ final class AppSettings: ObservableObject {
             Key.save: false,
             Key.sound: true,
             Key.shadow: true,
+            Key.openEditor: false,
             Key.duration: PreviewDuration.medium.rawValue,
         ])
 
@@ -148,6 +153,7 @@ final class AppSettings: ObservableObject {
         saveToFolder = defaults.bool(forKey: Key.save)
         playSound = defaults.bool(forKey: Key.sound)
         includeWindowShadow = defaults.bool(forKey: Key.shadow)
+        openEditorAfterCapture = defaults.bool(forKey: Key.openEditor)
         saveFolder = defaults.string(forKey: Key.folder).map { URL(fileURLWithPath: $0) }
             ?? FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
 

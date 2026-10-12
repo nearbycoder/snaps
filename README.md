@@ -42,20 +42,37 @@ Change them in **Settings → Shortcuts**: click a shortcut and type a new combo
 - Appears in the bottom-left corner by default. Change the corner from the menu bar popover or in Settings.
 - Follows your cursor between displays: move to another monitor and the previews hop to that display's corner. They stay put while a mouse button is held, so you can drag one across.
 - **Drag** it into Finder, Slack, Mail, a browser, and so on. It dismisses itself after a successful drop.
-- **Hover** to reveal buttons for close, pin (keeps it on screen), copy again, save / show in Finder, and open.
-- **Double-click** to open the image in Preview.
+- **Hover** to reveal buttons for close, pin (keeps it on screen), annotate, copy again, save / show in Finder, and open.
+- **Double-click** to open it in the editor.
 - Auto-dismisses after 5, 10 or 20 seconds, or stays until you close it.
 
 ## The gallery
 
 Press ⌃⇧G, or click **Gallery** in the menu bar popover. A glass strip drops down across the top of the screen, over the menu bar, with your recent captures (newest first).
 
-- **Click** a capture to copy it. **Drag** it into any app. **Double-click** to open it.
-- **Hover** for remove, copy and save / show in Finder.
+- **Click** a capture to copy it. **Drag** it into any app. **Double-click** to open it in the editor.
+- **Hover** for remove, annotate, copy and save / show in Finder.
 - Press **Esc**, click outside, or press the shortcut again to close it.
 - Like the previews, it moves to whichever display your cursor is on.
 
 The gallery keeps your last 60 captures. Unsaved captures are cleaned up after 7 days; anything saved to a folder stays in the gallery as long as the file exists.
+
+## Annotating
+
+Double-click a preview or a gallery card, or click its pencil, to open the capture in the editor. It starts with the arrow selected. To open every capture there automatically, turn on **Settings → After Capture → Open in the editor**.
+
+| Tool | Key | How |
+| --- | --- | --- |
+| Select | V | Click an annotation to select it, drag to move it, Delete to remove it |
+| Arrow | A | Drag from the tail to the tip. Hold Shift to snap to 45° |
+| Text | T | Click and type. Return finishes, Shift Return adds a line |
+| Blur | B | Drag over anything you want to hide. It's pixelated, then softened, so it can't be recovered |
+
+- Pick a color and a size before drawing, or select an annotation and change them. Blur ignores both.
+- Drag the handles of a selected arrow or blur to reshape it. Arrow keys nudge the selection (Shift for 10 points).
+- **⌘Z** / **⇧⌘Z** undo and redo. **⌘C** or **Copy** puts the annotated image on the clipboard.
+- **Done** (⌘↩) writes the annotations into the capture, so the preview, the gallery and drag and drop all get the annotated version, and copies it if **Copy to clipboard** is on.
+- Closing the window without Done keeps your annotations as a draft. Until you quit Snaps, reopening a capture brings its annotations back, still editable.
 
 ## Build from source
 

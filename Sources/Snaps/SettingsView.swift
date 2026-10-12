@@ -71,7 +71,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Show previews in the \(settings.corner.title.lowercased()) corner")
                             .font(.system(size: 13, weight: .medium))
-                        Text("Drag a preview into any app, or press ⌘V — it’s already on your clipboard.")
+                        Text("Drag a preview into any app, or press ⌘V: it’s already on your clipboard.")
                             .font(.system(size: 11))
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -84,7 +84,7 @@ struct SettingsView: View {
                     Picker("Dismiss after", selection: $settings.previewDuration) {
                         ForEach(PreviewDuration.allCases) { Text($0.title).tag($0) }
                     }
-                    .pickerStyle(.segmented)
+                    .pickerStyle(.menu)
                     .labelsHidden()
                     .fixedSize()
                 }
@@ -107,6 +107,11 @@ struct SettingsView: View {
                             .controlSize(.small)
                     }
                 }
+                SettingToggle(
+                    "Open in the editor",
+                    detail: "Every capture opens ready to annotate, with the arrow selected.",
+                    isOn: $settings.openEditorAfterCapture
+                )
                 Divider().opacity(0.5)
                 SettingToggle("Play capture sound", isOn: $settings.playSound)
                 SettingToggle("Include window shadow", isOn: $settings.includeWindowShadow)
@@ -186,16 +191,23 @@ struct GlassSection<Content: View>: View {
 
 struct SettingToggle: View {
     let title: String
+    let detail: String?
     @Binding var isOn: Bool
 
-    init(_ title: String, isOn: Binding<Bool>) {
+    init(_ title: String, detail: String? = nil, isOn: Binding<Bool>) {
         self.title = title
+        self.detail = detail
         self._isOn = isOn
     }
 
     var body: some View {
         HStack {
-            Text(title).font(.system(size: 13))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(.system(size: 13))
+                if let detail {
+                    Text(detail).font(.system(size: 11)).foregroundStyle(.secondary)
+                }
+            }
             Spacer()
             Toggle(title, isOn: $isOn)
                 .labelsHidden()
@@ -312,9 +324,11 @@ final class ShortcutRecorderModel: ObservableObject {
 }
 
 struct VisualEffectBackground: NSViewRepresentable {
+    var material: NSVisualEffectView.Material = .sidebar
+
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
-        view.material = .sidebar
+        view.material = material
         view.blendingMode = .behindWindow
         view.state = .active
         return view

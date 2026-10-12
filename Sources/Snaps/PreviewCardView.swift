@@ -7,6 +7,7 @@ struct PreviewActions {
     var copy: () -> Void
     var save: () -> Void
     var open: () -> Void
+    var annotate: () -> Void
     var hover: (Bool) -> Void
     var dragStarted: () -> Void
     var dragEnded: (Bool) -> Void
@@ -32,7 +33,7 @@ struct PreviewCardView: View {
                 inset: PreviewController.padding,
                 onHover: actions.hover,
                 onClick: nil,
-                onDoubleClick: actions.open,
+                onDoubleClick: actions.annotate,
                 onDragStart: actions.dragStarted,
                 onDragEnd: actions.dragEnded
             )
@@ -87,6 +88,7 @@ struct PreviewCardView: View {
             Spacer()
             GlassEffectContainer(spacing: 6) {
                 HStack(spacing: 6) {
+                    GlassIconButton(symbol: "pencil", help: "Annotate", action: actions.annotate)
                     GlassIconButton(symbol: "doc.on.doc", help: "Copy to clipboard", action: actions.copy)
                     GlassIconButton(
                         symbol: model.isSaved ? "folder" : "square.and.arrow.down",
@@ -103,13 +105,14 @@ struct PreviewCardView: View {
 struct GlassIconButton: View {
     let symbol: String
     let help: String
+    var size: CGFloat = 26
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 11, weight: .bold))
-                .frame(width: 26, height: 26)
+                .frame(width: size, height: size)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

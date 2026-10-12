@@ -16,7 +16,8 @@ final class PreviewManager {
         self?.follow(to: screen)
     }
 
-    func show(image: NSImage, fileURL: URL) {
+    @discardableResult
+    func show(image: NSImage, fileURL: URL) -> PreviewController {
         screen = NSScreen.underMouse
         follower.start(on: screen)
 
@@ -35,6 +36,7 @@ final class PreviewManager {
             oldest.dismiss()
         }
         layout(animated: true, presenting: controller)
+        return controller
     }
 
     func setHidden(_ hidden: Bool) {
@@ -77,7 +79,7 @@ final class PreviewManager {
 
 @MainActor
 final class PreviewModel: ObservableObject {
-    let image: NSImage
+    @Published var image: NSImage
     @Published var fileURL: URL
     @Published var isHovering = false
     @Published var isPinned = false
@@ -104,6 +106,7 @@ final class PreviewController {
     private var timer: Timer?
     private var isDismissing = false
     private var isDragging = false
+    private var isEditing = false
     private var transferGeneration = 0
     private var toastTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
@@ -124,6 +127,7 @@ final class PreviewController {
                 copy: { [weak self] in self?.copyAgain() },
                 save: { [weak self] in self?.saveAndReveal() },
                 open: { [weak self] in self?.open() },
+                annotate: { [weak self] in self?.annotate() },
                 hover: { [weak self] hovering in self?.model.isHovering = hovering },
                 dragStarted: { [weak self] in self?.dragStarted() },
                 dragEnded: { [weak self] dropped in self?.dragEnded(dropped: dropped) }
@@ -135,6 +139,13 @@ final class PreviewController {
             .removeDuplicates()
             .sink { [weak self] hovering in
                 if hovering { self?.cancelTimer() } else { self?.scheduleTimer() }
+            }
+            .store(in: &cancellables)
+
+        AnnotationEditor.shared.didUpdate
+            .sink { [weak self] update in
+                guard let self, update.url == self.model.fileURL else { return }
+                self.model.image = update.image
             }
             .store(in: &cancellables)
     }
@@ -223,7 +234,7 @@ final class PreviewController {
 
     private func scheduleTimer() {
         cancelTimer()
-        guard !model.isPinned, !model.isHovering, !isDismissing, !isDragging,
+        guard !model.isPinned, !model.isHovering, !isDismissing, !isDragging, !isEditing,
               let interval = AppSettings.shared.previewDuration.interval else { return }
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
             Task { @MainActor in self?.dismiss() }
@@ -265,6 +276,26 @@ final class PreviewController {
     private func open() {
         NSWorkspace.shared.open(model.fileURL)
         dismiss()
+    }
+
+    /// Opens the capture in the editor. The preview stays put meanwhile and shows the result when it closes.
+    func annotate() {
+        let opened = AnnotationEditor.shared.open(
+            model.fileURL,
+            target: { [weak model] in model?.fileURL },
+            onClose: { [weak self] copied in
+                guard let self else { return }
+                self.isEditing = false
+                if copied { self.showToast("Copied") }
+                self.scheduleTimer()
+            }
+        )
+        if opened {
+            isEditing = true
+            cancelTimer()
+        } else {
+            showToast("Couldn’t open")
+        }
     }
 
     private func dragStarted() {

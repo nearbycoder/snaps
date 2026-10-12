@@ -14,6 +14,7 @@ final class AppCoordinator {
 
     func start() {
         CaptureStorage.pruneCache()
+        EditMenu.install()
 
         statusBar = StatusBarController(
             onCapture: { [weak self] mode in self?.capture(mode) },
@@ -90,7 +91,10 @@ final class AppCoordinator {
                 Clipboard.copy(image: image, pngURL: url)
             }
             CaptureHistory.shared.add(url: url, size: image.size)
-            previews.show(image: image, fileURL: url)
+            let preview = previews.show(image: image, fileURL: url)
+            if settings.openEditorAfterCapture {
+                preview.annotate()
+            }
         }
     }
 

@@ -41,7 +41,11 @@ final class GalleryController {
         let panel = GlassPanel(contentSize: frame.size)
         panel.onCancel = { [weak self] in self?.hide() }
         panel.setContent(
-            GalleryView(topInset: topInset, onClose: { [weak self] in self?.hide() }),
+            GalleryView(
+                topInset: topInset,
+                onClose: { [weak self] in self?.hide() },
+                onAnnotate: { [weak self] item in self?.annotate(item) }
+            ),
             cornerRadius: 28
         )
         self.panel = panel
@@ -63,6 +67,13 @@ final class GalleryController {
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] _ in
             Task { @MainActor in self?.hide() }
         }
+    }
+
+    private func annotate(_ item: CaptureItem) {
+        hide()
+        AnnotationEditor.shared.open(item.url, target: {
+            CaptureHistory.shared.items.first { $0.id == item.id }?.url
+        })
     }
 
     func hide() {
@@ -96,6 +107,7 @@ struct GalleryView: View {
     @ObservedObject private var settings = AppSettings.shared
     let topInset: CGFloat
     let onClose: () -> Void
+    let onAnnotate: (CaptureItem) -> Void
 
     var body: some View {
         HStack(spacing: 0) {
@@ -113,7 +125,7 @@ struct GalleryView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: 14) {
                         ForEach(history.items) { item in
-                            GalleryCard(item: item)
+                            GalleryCard(item: item, onAnnotate: onAnnotate)
                         }
                     }
                     .padding(.horizontal, 18)
@@ -202,6 +214,7 @@ final class GalleryCardModel: ObservableObject {
 
 struct GalleryCard: View {
     let item: CaptureItem
+    let onAnnotate: (CaptureItem) -> Void
     @StateObject private var model = GalleryCardModel()
 
     private static let imageHeight: CGFloat = 128
@@ -219,7 +232,7 @@ struct GalleryCard: View {
                     inset: 0,
                     onHover: { model.isHovering = $0 },
                     onClick: copy,
-                    onDoubleClick: { NSWorkspace.shared.open(item.url) },
+                    onDoubleClick: { onAnnotate(item) },
                     onDragStart: {},
                     onDragEnd: { _ in }
                 )
@@ -286,6 +299,7 @@ struct GalleryCard: View {
                 Spacer()
                 GlassEffectContainer(spacing: 6) {
                     HStack(spacing: 6) {
+                        GlassIconButton(symbol: "pencil", help: "Annotate") { onAnnotate(item) }
                         GlassIconButton(symbol: "doc.on.doc", help: "Copy", action: copy)
                         GlassIconButton(
                             symbol: CaptureStorage.isInCache(item.url) ? "square.and.arrow.down" : "folder",
