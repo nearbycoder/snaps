@@ -9,7 +9,6 @@ struct EditorView: View {
     let onDone: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var showsToolHint = true
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,9 +29,9 @@ struct EditorView: View {
             VisualEffectBackground(material: .underPageBackground).ignoresSafeArea()
         }
         .task(id: model.tool) {
-            showsToolHint = true
+            model.showsToolHint = true
             try? await Task.sleep(for: .seconds(2.6))
-            if !Task.isCancelled { showsToolHint = false }
+            if !Task.isCancelled { model.showsToolHint = false }
         }
     }
 
@@ -132,7 +131,7 @@ struct EditorView: View {
                     .padding(.vertical, 8)
                     .glassEffect(.regular, in: .capsule)
                     .transition(Motion.pill(reduceMotion: reduceMotion))
-            } else if model.isEmpty || showsToolHint {
+            } else if model.isEmpty || model.showsToolHint {
                 Text(model.tool.hint)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
@@ -145,7 +144,7 @@ struct EditorView: View {
         }
         .animation(Motion.smoothOut(Motion.fast), value: model.toast)
         .animation(Motion.smoothOut(Motion.fast), value: model.tool)
-        .animation(Motion.smoothOut(Motion.fast), value: model.isEmpty || showsToolHint)
+        .animation(Motion.smoothOut(Motion.fast), value: model.isEmpty || model.showsToolHint)
     }
 }
 

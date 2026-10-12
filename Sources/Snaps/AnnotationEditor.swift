@@ -255,6 +255,9 @@ final class EditorModel: ObservableObject {
     @Published private(set) var isEmpty = true
     @Published private(set) var selectionKind: Annotation.Kind?
     @Published private(set) var toast: String?
+    /// Whether the current tool's hint is showing. Lives here rather than in `@State`, which needs
+    /// Xcode's SwiftUI macro plugin and so won't build with the Command Line Tools alone.
+    @Published var showsToolHint = true
 
     private(set) var annotations: [Annotation] {
         didSet { annotationsChanged() }
