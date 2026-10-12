@@ -273,6 +273,36 @@
   .relaunch { height: 24px; padding: 0 11px; border-radius: 12px; background: #3478f6; color: white; font: 700 11.5px var(--font); display: flex; align-items: center; white-space: nowrap; }
   #insGhost { width: 128px; height: 128px; opacity: 0; }
 
+
+  /* ---------- Annotation editor scene ---------- */
+  .anno { position: absolute; inset: 0; pointer-events: none; }
+  .anno-blur { position: absolute; border-radius: 3px; -webkit-backdrop-filter: blur(7px) saturate(1.05); backdrop-filter: blur(7px) saturate(1.05);
+    background: rgba(255,255,255,0.06); display: none; }
+  .anno-svg { position: absolute; left: 0; top: 0; overflow: visible; filter: drop-shadow(0 1.5px 2px rgba(0,0,0,0.35)); }
+  .anno-text { position: absolute; font: 800 26px var(--rounded); letter-spacing: 1px; color: #ff3b30; white-space: nowrap;
+    -webkit-text-stroke: 5px white; paint-order: stroke fill; filter: drop-shadow(0 1.5px 2px rgba(0,0,0,0.35)); }
+  .anno-caret { display: inline-block; width: 2px; height: 28px; background: #ff3b30; vertical-align: -5px; margin-left: 2px; -webkit-text-stroke: 0; }
+  #editorWin { left: 360px; top: 130px; width: 1200px; height: 700px; border-radius: 16px; overflow: hidden; opacity: 0; transform-origin: 50% 50%;
+    background: #17171c; box-shadow: 0 40px 100px rgba(10, 12, 40, 0.55), 0 0 0 1px rgba(255,255,255,0.08); color: white; }
+  .ed-bar { position: absolute; left: 0; right: 0; top: 0; height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 14px 0 18px; background: #1f1f25; }
+  .ed-bar .lights { margin-right: 10px; }
+  .ed-group { display: flex; align-items: center; gap: 4px; padding: 3px; border-radius: 999px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.08); }
+  .ed-tool { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: rgba(255,255,255,0.85); font: 700 12px var(--font); }
+  .ed-tool.on { background: #0a84ff; color: white; }
+  .ed-sw { width: 16px; height: 16px; border-radius: 50%; margin: 4px; box-shadow: 0 0 0 0.5px rgba(255,255,255,0.3); }
+  .ed-sw.on { box-shadow: 0 0 0 2px #17171c, 0 0 0 3.5px rgba(255,255,255,0.85); }
+  .ed-dot { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; }
+  .ed-dot i { display: block; border-radius: 50%; background: rgba(255,255,255,0.85); }
+  .ed-dot.on { background: rgba(255,255,255,0.14); }
+  .ed-btn { height: 32px; padding: 0 14px; border-radius: 16px; display: flex; align-items: center; gap: 7px; font: 600 13px var(--font); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); }
+  .ed-btn.done { background: #0a84ff; border-color: #0a84ff; font-weight: 700; min-width: 70px; justify-content: center; }
+  .ed-canvas { position: absolute; left: 0; right: 0; top: 52px; bottom: 0; }
+  #edImage { position: absolute; left: 88px; top: 114px; width: 1024px; height: 421px; box-shadow: 0 14px 40px rgba(0,0,0,0.45); }
+  #edHint { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); padding: 8px 14px; border-radius: 999px; font: 500 12.5px var(--font);
+    color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); white-space: nowrap; }
+  .preview .ptoast { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 7px 13px; border-radius: 999px; font: 700 13px var(--font);
+    color: #141827; background: rgba(255,255,255,0.8); border: 1px solid rgba(255,255,255,0.9); opacity: 0; white-space: nowrap; }
+
   /* Cursor */
   #cursor { left: 0; top: 0; width: 0; height: 0; z-index: 50; }
   #cursor svg { position: absolute; display: none; }
@@ -424,6 +454,7 @@
     <div id="p1" class="abs preview glass">
       <div class="shot clip" id="p1shot"></div>
       <div class="ctrl" style="left:14px;top:14px">✕</div><div class="ctrl" style="right:14px;top:14px">📌</div>
+      <div class="ptoast" id="p1toast">✓ Copied</div>
     </div>
     <div id="p2" class="abs preview glass">
       <div class="shot clip" id="p2shot"></div>
@@ -467,6 +498,37 @@
       <div id="gthumbs"></div>
     </div>
 
+
+    <!-- ================= EDITOR SCENE ================= -->
+    <div id="editorWin" class="abs">
+      <div class="ed-bar">
+        <div class="lights"><i></i><i></i><i></i></div>
+        <div class="ed-group">
+          <div class="ed-tool" id="edt-select"><svg width="13" height="15" viewBox="0 0 17 20"><path d="M1.5 1.2v15.6l3.9-3.7 2.6 5.9 2.6-1.1-2.5-5.8h5.4z" fill="currentColor"/></svg></div>
+          <div class="ed-tool" id="edt-arrow"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 11 3M5 3h6v6"/></svg></div>
+          <div class="ed-tool" id="edt-text">Aa</div>
+          <div class="ed-tool" id="edt-blur"><svg width="12" height="15" viewBox="0 0 12 15"><path d="M6 1C6 1 1 7 1 9.8A5 5 0 0 0 11 9.8C11 7 6 1 6 1Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M6 15a5 5 0 0 0 5-5.2H1A5 5 0 0 0 6 15Z" fill="currentColor" opacity=".9"/></svg></div>
+        </div>
+        <div class="ed-group">
+          <div class="ed-sw on" style="background:#ff3b30"></div><div class="ed-sw" style="background:#ff9500"></div><div class="ed-sw" style="background:#ffcc00"></div>
+          <div class="ed-sw" style="background:#34c759"></div><div class="ed-sw" style="background:#007aff"></div><div class="ed-sw" style="background:#fff"></div><div class="ed-sw" style="background:#141417"></div>
+        </div>
+        <div class="ed-group">
+          <div class="ed-dot"><i style="width:5px;height:5px"></i></div><div class="ed-dot"><i style="width:8px;height:8px"></i></div><div class="ed-dot on"><i style="width:11px;height:11px"></i></div>
+        </div>
+        <div style="flex:1"></div>
+        <div class="ed-group" style="gap:6px;background:none;border:0"><div class="ed-tool" style="background:rgba(255,255,255,0.07)"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5 2 5.5l3 3"/><path d="M2.5 5.5H9a3 3 0 0 1 0 6H6.5"/></svg></div><div class="ed-tool" style="background:rgba(255,255,255,0.07);opacity:.45"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2.5l3 3-3 3"/><path d="M11.5 5.5H5a3 3 0 0 0 0 6h2.5"/></svg></div></div>
+        <div class="ed-btn"><svg width="13" height="14" viewBox="0 0 13 14" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="1" width="8" height="9.5" rx="2"/><path d="M2.5 4H2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-.5"/></svg>Copy</div>
+        <div class="ed-btn done" id="edDone">Done</div>
+      </div>
+      <div class="ed-canvas">
+        <div id="edImage" class="clip"></div>
+        <div id="edHint">Drag to draw an arrow. Hold Shift to keep it straight.</div>
+      </div>
+    </div>
+    <div id="ecap" class="abs caption glass"><div><div class="lbl">Annotate</div><div class="ttl">Arrows, text and blur in seconds</div></div>
+      <div class="keys"><div class="key" id="ek0">A</div><div class="key" id="ek1">T</div><div class="key" id="ek2">B</div></div></div>
+
     <!-- Captions -->
     <div id="captions"></div>
 
@@ -508,6 +570,7 @@
     <svg id="cur-arrow" width="34" height="40" viewBox="0 0 17 20" style="left:-3px;top:-2px"><path d="M1.5 1.2v15.6l3.9-3.7 2.6 5.9 2.6-1.1-2.5-5.8h5.4z" fill="black" stroke="white" stroke-width="1.3" stroke-linejoin="round"/></svg>
     <svg id="cur-cross" width="44" height="44" viewBox="0 0 44 44" style="left:-22px;top:-22px"><g stroke="white" stroke-width="4"><path d="M22 2v16M22 26v16M2 22h16M26 22h16"/></g><g stroke="black" stroke-width="2"><path d="M22 2v16M22 26v16M2 22h16M26 22h16"/></g></svg>
     <svg id="cur-cam" width="48" height="40" viewBox="0 0 24 20" style="left:-24px;top:-20px"><path d="M8.2 2.5h7.6l1.6 2.5H21a2 2 0 0 1 2 2v9.5a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h3.6z" fill="black" stroke="white" stroke-width="1.2"/><circle cx="12" cy="11.5" r="4" fill="none" stroke="white" stroke-width="1.6"/></svg>
+    <svg id="cur-ibeam" width="16" height="34" viewBox="0 0 16 34" style="left:-8px;top:-17px"><path d="M3 2h4l1 1 1-1h4M8 3v28M3 32h4l1-1 1 1h4" fill="none" stroke="white" stroke-width="4" stroke-linecap="round"/><path d="M3 2h4l1 1 1-1h4M8 3v28M3 32h4l1-1 1 1h4" fill="none" stroke="black" stroke-width="1.8" stroke-linecap="round"/></svg>
     <svg id="cur-grab" width="40" height="40" viewBox="0 0 20 20" style="left:-20px;top:-20px"><path d="M6 8.5V6.8c0-.9 1.6-.9 1.6 0v1.4-2.2c0-.9 1.7-.9 1.7 0v2-2.3c0-.9 1.7-.9 1.7 0v2.5-1.6c0-.9 1.6-.9 1.6 0v5.2c0 3-1.8 5-4.6 5-2.2 0-3.3-1-4.3-2.6L2.4 11c-.5-.9.7-1.7 1.4-.9L6 12.2z" fill="white" stroke="black" stroke-width="1.1" stroke-linejoin="round"/></svg>
   </div>
 </div>
@@ -546,6 +609,38 @@ function bubble(html, w, h, width) {
   const s = width / w;
   return `<div class="clip" style="width:${width}px;height:${Math.round(h * s)}px;border-radius:14px">${scaled(html, w, h, s)}</div>`;
 }
+// Annotations in capture coordinates (788×324), shared by the editor, the preview and the gallery.
+const ANNO = { tail: { x: 540, y: 265 }, tip: { x: 736, y: 157 }, text: { x: 432, y: 274 }, str: "Best week yet!",
+  blur: [30, 54, 160, 100], width: 11 };
+function annoHTML(p) {
+  return `<div class="anno" id="${p}"><div class="anno-blur" id="${p}-blur"></div>
+    <svg class="anno-svg" width="788" height="324"><path id="${p}-arrow" fill="#ff3b30" stroke="white" stroke-width="4.4" stroke-linejoin="round" paint-order="stroke"/></svg>
+    <div class="anno-text" id="${p}-text" style="left:${ANNO.text.x}px;top:${ANNO.text.y}px"></div></div>`;
+}
+function arrowD(tail, tip, width) {
+  const len = Math.hypot(tip.x - tail.x, tip.y - tail.y);
+  if (len < 0.5) return "";
+  const ax = (tip.x - tail.x) / len, ay = (tip.y - tail.y) / len, nx = -ay, ny = ax;
+  const head = Math.min(Math.max(width * 4, 14), len * 0.6), headHalf = head * 0.6, neckHalf = width / 2, tailHalf = width * 0.18;
+  const P = (b, back, side) => [b.x - ax * back + nx * side, b.y - ay * back + ny * side];
+  const pts = [P(tail, 0, tailHalf), P(tip, head * 0.8, neckHalf), P(tip, head, headHalf), [tip.x, tip.y], P(tip, head, -headHalf), P(tip, head * 0.8, -neckHalf), P(tail, 0, -tailHalf)];
+  return "M" + pts.map((q) => q[0].toFixed(1) + " " + q[1].toFixed(1)).join(" L") + " Z";
+}
+function setAnno(p, { tip = null, chars = 0, caret = false, blur = null, visible = true }) {
+  const root = document.getElementById(p);
+  if (!root) return;
+  root.style.display = visible ? "block" : "none";
+  if (!visible) return;
+  document.getElementById(p + "-arrow").setAttribute("d", tip ? arrowD(ANNO.tail, tip, ANNO.width) : "");
+  document.getElementById(p + "-text").innerHTML = ANNO.str.slice(0, chars) + (caret ? '<span class="anno-caret"></span>' : "");
+  const b = document.getElementById(p + "-blur");
+  if (blur) {
+    const [x0, y0, x1, y1] = blur;
+    Object.assign(b.style, { display: "block", left: Math.min(x0, x1) + "px", top: Math.min(y0, y1) + "px", width: Math.abs(x1 - x0) + "px", height: Math.abs(y1 - y0) + "px" });
+  } else b.style.display = "none";
+}
+const ANNO_FINAL = { tip: ANNO.tip, chars: ANNO.str.length, blur: ANNO.blur };
+
 function scaled(html, w, h, s) {
   return `<div class="inner" style="width:${w}px;height:${h}px;transform:scale(${s})">${html}</div>`;
 }
@@ -556,7 +651,7 @@ document.getElementById("weatherSlot").innerHTML = weather();
 // Preview geometry (cards fit within 320×220 + 6px padding).
 const P1 = { w: 320, h: Math.round(324 * 320 / 788) };          // chart
 const P2 = { w: Math.round(400 * 220 / 300), h: 220 };          // weather
-for (const [id, size, html, ow, oh] of [["p1", P1, captureChart(), 788, 324], ["p2", P2, weather(), 400, 300]]) {
+for (const [id, size, html, ow, oh] of [["p1", P1, captureChart() + annoHTML("p1a"), 788, 324], ["p2", P2, weather(), 400, 300]]) {
   const el = document.getElementById(id);
   el.style.width = size.w + 12 + "px"; el.style.height = size.h + 12 + "px";
   const shot = document.getElementById(id + "shot");
@@ -587,7 +682,7 @@ for (const m of MSGS) {
 
 // Gallery thumbnails.
 const GT = [
-  { w: 340, html: scaled(captureChart(), 788, 324, 340 / 788 * 1.2), label: "Just now", fit: true },
+  { w: 340, html: scaled(captureChart() + annoHTML("g0a"), 788, 324, 340 / 788 * 1.2), label: "Just now", fit: true },
   { w: 224, html: scaled(weather(), 400, 300, 224 / 400 * 1.0), label: "Just now" },
   { w: 286, html: `<div class="mock-code"><b>func</b> <u>capture</u>(_ mode: <s>CaptureMode</s>) {<br>&nbsp;&nbsp;<b>guard</b> !isCapturing <b>else</b> { <b>return</b> }<br>&nbsp;&nbsp;statusBar?.<u>closePopover</u>()<br>&nbsp;&nbsp;<b>let</b> url = <b>await</b> <u>capture</u>(mode)<br>&nbsp;&nbsp;Clipboard.<u>copy</u>(url)<br>}</div>`, label: "12 min ago" },
   { w: 230, html: `<div class="mock-palette"><i style="background:#0ea5e9"></i><i style="background:#6366f1"></i><i style="background:#a855f7"></i><i style="background:#ec4899"></i><i style="background:#f59e0b"></i></div>`, label: "1 hr ago" },
@@ -824,7 +919,7 @@ function renderMain(t, T) {
     : camMode ? "cam"
     : (t >= 17.72 && t < 18.98) ? "grab"
     : "arrow";
-  for (const n of ["arrow", "cross", "cam", "grab"]) $("cur-" + n).style.display = n === type ? "block" : "none";
+  for (const n of ALL_CURSORS) $("cur-" + n).style.display = n === type ? "block" : "none";
   const press = [9.9, 16.0, 20.85, 22.15, 28.15].some(s => t >= s && t < s + 0.12) || (t >= 6.35 && t < 7.62);
   set($("cursor"), { left: cur.x + "px", top: cur.y + "px", opacity: prog(t, 3.7, 0.3), transform: `scale(${press ? 0.88 : 1})` });
 
@@ -839,7 +934,13 @@ function renderMain(t, T) {
 // ---------- Install scene (absolute time T) ----------
 const INSTALL = { start: 3.0, end: 12.0, freeze: 4.0 };
 const INSTALL_SHIFT = INSTALL.end - INSTALL.freeze; // main timeline resumes at 4.0 when T = 12.0
-const mainTime = (T) => (T < INSTALL.freeze ? T : T < INSTALL.end ? INSTALL.freeze : T - INSTALL_SHIFT);
+// The main timeline pauses during the inserted install (T 3–12) and editor (T 28.7–36.2) scenes.
+const mainTime = (T) =>
+  T < INSTALL.freeze ? T
+  : T < INSTALL.end ? INSTALL.freeze
+  : T < 28.7 ? T - INSTALL_SHIFT
+  : T < 36.2 ? 20.7
+  : T - INSTALL_SHIFT - 7.5;
 
 const DMG_SCALE = 1.3;
 const dmgPt = (lx, ly) => ({ x: 960 + (lx - 320) * DMG_SCALE, y: 520 + (ly - 216) * DMG_SCALE });
@@ -917,7 +1018,7 @@ function renderInstall(T) {
   const showCursor = T >= 3.7 && T < 12.0;
   if (showCursor) {
     const type = dragging1 || dragging2 ? "grab" : "arrow";
-    for (const n of ["arrow", "cross", "cam", "grab"]) $("cur-" + n).style.display = n === type ? "block" : "none";
+    for (const n of ALL_CURSORS) $("cur-" + n).style.display = n === type ? "block" : "none";
     const press = (T >= 9.8 && T < 9.92) || dragging1 || dragging2;
     set($("cursor"), { left: cur.x + "px", top: cur.y + "px", opacity: prog(T, 3.7, 0.3), transform: `scale(${press ? 0.88 : 1})` });
     const r = T >= 9.8 && T < 10.25 ? (T - 9.8) / 0.45 : null;
@@ -926,12 +1027,85 @@ function renderInstall(T) {
   return showCursor;
 }
 
+
+// ---------- Annotation editor scene (absolute time T) ----------
+const ALL_CURSORS = ["arrow", "cross", "cam", "grab", "ibeam"];
+const EDIT = { start: 28.7, end: 36.2, freeze: 20.7 };
+const EDIT_DONE = EDIT.start + 6.6; // annotations are in the capture from here on
+const ED_SCALE = 1.3, ED_ORIGIN = { x: 360 + 88, y: 130 + 52 + 114 };
+const edPt = (c) => ({ x: ED_ORIGIN.x + c.x * ED_SCALE, y: ED_ORIGIN.y + c.y * ED_SCALE });
+const edCap = (g) => ({ x: (g.x - ED_ORIGIN.x) / ED_SCALE, y: (g.y - ED_ORIGIN.y) / ED_SCALE });
+document.getElementById("edImage").innerHTML = scaled(captureChart() + annoHTML("ea"), 788, 324, ED_SCALE);
+
+function editorCursorPath() {
+  const start = cursorAt(EDIT.freeze);
+  const p1 = BL(P1), p1c = { x: p1.x + (P1.w + 12) / 2, y: p1.y + (P1.h + 12) / 2 };
+  const tail = edPt(ANNO.tail), tip = edPt(ANNO.tip), text = edPt({ x: ANNO.text.x + 4, y: ANNO.text.y + 14 });
+  const b0 = edPt({ x: ANNO.blur[0], y: ANNO.blur[1] }), b1 = edPt({ x: ANNO.blur[2], y: ANNO.blur[3] });
+  const done = { x: 1511, y: 156 };
+  const u = (x) => EDIT.start + x;
+  return [
+    [u(0), start.x, start.y], [u(0.7), p1c.x, p1c.y], [u(1.0), p1c.x, p1c.y], [u(1.6), tail.x, tail.y], [u(1.75), tail.x, tail.y],
+    [u(2.95), tip.x, tip.y], [u(3.15), tip.x, tip.y], [u(3.5), text.x, text.y], [u(4.6), text.x, text.y], [u(5.0), b0.x, b0.y],
+    [u(5.05), b0.x, b0.y], [u(5.7), b1.x, b1.y], [u(5.85), b1.x, b1.y], [u(6.3), done.x, done.y], [u(6.55), done.x, done.y],
+    [u(7.5), start.x, start.y],
+  ];
+}
+let EDITOR_CURSOR = null;
+
+function renderEditor(T) {
+  // Annotated copies in the preview and gallery once Done is clicked.
+  setAnno("p1a", { ...ANNO_FINAL, visible: T >= EDIT_DONE });
+  setAnno("g0a", { ...ANNO_FINAL, visible: T >= EDIT_DONE });
+  const t1 = prog(T, EDIT_DONE + 0.1, 0.3, E.back) * (1 - prog(T, EDIT_DONE + 1.0, 0.25, E.in));
+  set($("p1toast"), { opacity: Math.min(1, t1), transform: `translate(-50%, -50%) scale(${0.85 + 0.15 * Math.min(1, t1)})` });
+
+  const u = T - EDIT.start;
+  const active = u >= 0 && u < EDIT.end - EDIT.start;
+  const open = prog(u, 1.0, 0.4, E.back) * (1 - prog(u, 6.55, 0.3, E.in));
+  set($("editorWin"), { opacity: Math.min(1, open * 1.3), transform: `scale(${0.93 + 0.07 * Math.min(1.02, open)})`, display: open > 0 ? "block" : "none" });
+  const k = prog(u, 1.0, 0.45, E.quint) * (1 - prog(u, 7.0, 0.35, E.in));
+  set($("ecap"), { opacity: k, transform: `translateX(-50%) translateY(${(1 - k) * 22}px)` });
+  if (!active) return false;
+
+  EDITOR_CURSOR = EDITOR_CURSOR || editorCursorPath();
+  const cur = pathAt(EDITOR_CURSOR, T);
+  const capCur = edCap(cur);
+
+  const tool = u < 3.1 ? "arrow" : u < 4.6 ? "text" : "blur";
+  for (const t of ["select", "arrow", "text", "blur"]) $("edt-" + t).classList.toggle("on", t === tool);
+  $("edHint").textContent = { arrow: "Drag to draw an arrow. Hold Shift to keep it straight.", text: "Click where the text should go and start typing. Return finishes it.", blur: "Drag over anything you want to hide." }[tool];
+  [1.5, 3.1, 4.6].forEach((d, i) => {
+    const down = u >= d && u < d + 0.32;
+    set($("ek" + i), { transform: down ? "translateY(4px)" : "none", boxShadow: down ? "0 0 0 #b9bfd0, 0 0 22px rgba(165,243,252,0.85)" : "", background: down ? "linear-gradient(180deg, #ecfeff, #cffafe)" : "" });
+  });
+
+  const tip = u < 1.75 ? null : u < 2.95 ? capCur : ANNO.tip;
+  const chars = Math.max(0, Math.min(ANNO.str.length, Math.floor((u - 3.6) / 0.06)));
+  const caret = u >= 3.55 && u < 4.6 && Math.floor(u * 3) % 2 === 0;
+  const blur = u < 5.05 ? null : u < 5.7 ? [ANNO.blur[0], ANNO.blur[1], capCur.x, capCur.y] : ANNO.blur;
+  setAnno("ea", { tip, chars: u >= 3.55 ? chars : 0, caret, blur });
+
+  // Cursor
+  const drawing = (u >= 1.75 && u < 2.95) || (u >= 5.05 && u < 5.7);
+  const type = u < 1.45 || u >= 5.8 ? "arrow" : tool === "text" ? "ibeam" : "cross";
+  for (const n of ALL_CURSORS) $("cur-" + n).style.display = n === type ? "block" : "none";
+  const clicks = [0.8, 0.95, 3.55, 6.45];
+  const press = drawing || clicks.some((c) => u >= c && u < c + 0.1);
+  set($("cursor"), { left: cur.x + "px", top: cur.y + "px", opacity: 1, transform: `scale(${press ? 0.88 : 1})` });
+  let r = null;
+  for (const c of clicks) if (u >= c && u < c + 0.4) r = (u - c) / 0.4;
+  set($("ripple"), { left: cur.x - 23 + "px", top: cur.y - 23 + "px", opacity: r === null ? 0 : 0.8 * (1 - r), transform: `scale(${r === null ? 1 : 0.4 + r})` });
+  return true;
+}
+
 function renderAt(T) {
   renderMain(mainTime(T), T);
   renderInstall(T);
+  renderEditor(T);
 }
 
-window.DURATION = 42;
+window.DURATION = 49.5;
 window.renderAt = renderAt;
 window.addEventListener("load", () => {
   buildCursorPath();

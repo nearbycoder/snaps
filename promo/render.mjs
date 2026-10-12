@@ -63,7 +63,7 @@ ffmpeg.stdin.end();
 await new Promise((r) => ffmpeg.on("close", r));
 
 // Poster frame for the web page.
-const poster = await frameAt(39.4);
+const poster = await frameAt(46.9);
 const { writeFileSync } = await import("node:fs");
 writeFileSync(join(outDir, "promo-poster.jpg"), poster);
 

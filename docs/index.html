@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Snaps: screenshots that land on your clipboard</title>
-  <meta name="description" content="Snaps is a free, open source macOS menu bar app for screenshots. Capture an area, a window or the whole screen. It's instantly on your clipboard, with a floating glass preview you can drag anywhere.">
+  <meta name="description" content="Snaps is a free, open source macOS menu bar app for screenshots. Capture an area, a window or the whole screen. It's instantly on your clipboard, with a floating glass preview you can drag anywhere, and an editor for arrows, text and blur.">
   <meta name="theme-color" content="#0b1026">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -16,7 +16,7 @@
   <meta property="og:locale" content="en_US">
   <meta property="og:url" content="https://nearbycoder.github.io/snaps/">
   <meta property="og:title" content="Snaps: screenshots that land on your clipboard">
-  <meta property="og:description" content="A free, open source macOS menu bar app. Capture an area, a window or the whole screen. It's copied instantly, with a glass preview you can drag into any app.">
+  <meta property="og:description" content="A free, open source macOS menu bar app. Capture an area, a window or the whole screen. It's copied instantly, with a glass preview you can drag into any app, and an editor for arrows, text and blur.">
   <meta property="og:image" content="https://nearbycoder.github.io/snaps/assets/og.png">
   <meta property="og:image:secure_url" content="https://nearbycoder.github.io/snaps/assets/og.png">
   <meta property="og:image:type" content="image/png">
@@ -25,7 +25,7 @@
   <meta property="og:image:alt" content="Snaps app icon and the tagline “Screenshots that land on your clipboard”, next to a Mac desktop showing a glass screenshot preview marked Copied">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Snaps: screenshots that land on your clipboard">
-  <meta name="twitter:description" content="Free, open source macOS screenshots: area, window or full screen, copied instantly, with a glass preview you can drag anywhere.">
+  <meta name="twitter:description" content="Free, open source macOS screenshots: area, window or full screen, copied instantly, with a glass preview you can drag anywhere, plus arrows, text and blur.">
   <meta name="twitter:image" content="https://nearbycoder.github.io/snaps/assets/og.png">
   <meta name="twitter:image:alt" content="Snaps app icon and tagline beside a Mac desktop with a glass screenshot preview">
   <style>
@@ -189,6 +189,20 @@
     .private-list li::before { content: ""; width: 18px; height: 18px; flex: none; border-radius: 50%;
       background: #34d399 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2306102b' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center/12px no-repeat; }
 
+    /* Annotate */
+    .annotate { display: grid; grid-template-columns: 0.9fr 1.35fr; gap: 40px; align-items: center; }
+    .annotate .copy h2 { margin-top: 12px; }
+    .annotate .copy > p { color: var(--muted); font-size: 18px; margin: 16px 0 0; }
+    .tools { list-style: none; padding: 0; margin: 26px 0 0; display: grid; gap: 12px; }
+    .tools li { display: flex; align-items: center; gap: 14px; color: var(--muted); }
+    .tools li b { color: var(--text); font: 700 16px var(--rounded); display: block; }
+    .tools kbd { min-width: 46px; height: 34px; font-size: 15px; flex: none; }
+    .annotate .shot { border-radius: 22px; padding: 8px; }
+    .annotate .shot img { border-radius: 15px; width: 100%; height: auto; }
+    .credit { margin-top: 22px; font-size: 14px; color: var(--faint); }
+    .credit a { color: var(--cyan); }
+    .credit a:hover { text-decoration: underline; }
+
     /* Shortcuts */
     .shortcuts { border-radius: var(--radius); padding: 10px; max-width: 760px; margin: 0 auto; }
     .sc-row { display: flex; align-items: center; gap: 18px; padding: 18px 20px; border-radius: 18px; }
@@ -234,6 +248,7 @@
       .nav-links { display: none; }
       .nav-inner .btn { margin-left: auto; }
       .steps { grid-template-columns: 1fr; }
+      .annotate { grid-template-columns: 1fr; }
       .bento { grid-template-columns: 1fr; }
       .span-2, .span-3, .span-4 { grid-column: auto; }
       .hero { padding-top: 64px; }
@@ -254,6 +269,7 @@
       <a class="brand" href="#top"><img src="assets/icon.svg" alt="">Snaps</a>
       <div class="nav-links">
         <a href="#how">How it works</a>
+        <a href="#annotate">Annotate</a>
         <a href="#features">Features</a>
         <a href="#shortcuts">Shortcuts</a>
         <a href="#faq">FAQ</a>
@@ -267,7 +283,7 @@
     <div class="eyebrow glass"><span class="dot"></span>Free &amp; open source · macOS 26+</div>
     <img class="hero-icon" src="assets/icon.svg" alt="Snaps app icon">
     <h1>Screenshots that land on <span class="grad">your clipboard.</span></h1>
-    <p class="lede">Snaps is a tiny menu bar app for macOS. Press a shortcut, grab an area, a window or the whole screen, then paste it anywhere. A glass preview floats in the corner so you can drag it straight into any app.</p>
+    <p class="lede">Snaps is a tiny menu bar app for macOS. Press a shortcut, grab an area, a window or the whole screen, then paste it anywhere. A glass preview floats in the corner so you can drag it straight into any app, or double-click it to mark it up.</p>
     <div class="cta">
       <a class="btn btn-primary btn-lg js-download" href="https://github.com/nearbycoder/snaps/releases/latest/download/Snaps.dmg">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>
@@ -283,9 +299,9 @@
     </div>
 
     <div class="video-frame glass reveal">
-      <div class="chrome"><i></i><i></i><i></i><span>Snaps in 40 seconds</span></div>
+      <div class="chrome"><i></i><i></i><i></i><span>Snaps in 50 seconds</span></div>
       <div class="media">
-        <video id="promo" src="assets/promo.mp4?v=c025ba602c" poster="assets/promo-poster.jpg?v=93432082fd" autoplay muted loop playsinline controls preload="metadata"
+        <video id="promo" src="assets/promo.mp4?v=b8f4af5880" poster="assets/promo-poster.jpg?v=93432082fd" autoplay muted loop playsinline controls preload="metadata"
           aria-label="Promo video showing installing Snaps, allowing Screen Recording, an area capture, pasting into a chat, dragging a window capture, choosing the preview corner, and the gallery"></video>
         <button class="sound" id="soundOn" type="button" aria-label="Turn sound on">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5v14l-4.5-4.5H4z"/><path d="M15.5 9a4.5 4.5 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>
@@ -319,6 +335,26 @@
         <h3>Or drag the preview</h3>
         <p>A glass thumbnail floats in your corner. Drag it into any app or folder, or hover for copy, save, pin and open.</p>
         <div class="keys"><kbd>↖︎ drag</kbd></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="annotate" class="wrap">
+    <div class="annotate">
+      <div class="copy reveal">
+        <div class="kicker">New in 1.0.2</div>
+        <h2>Mark it up before you send it.</h2>
+        <p>Double-click any preview or gallery card to open the editor. Point with arrows, add a note, blur what's private, then hit Done. The preview, the gallery and your clipboard all get the annotated version.</p>
+        <ul class="tools">
+          <li><kbd>A</kbd><div><b>Arrows</b>Drag from tail to tip. Shift snaps to 45°.</div></li>
+          <li><kbd>T</kbd><div><b>Text</b>Click and type. Seven colors, three sizes.</div></li>
+          <li><kbd>B</kbd><div><b>Blur</b>Pixelated, then softened, so it can't be recovered.</div></li>
+          <li><kbd>⌘↩</kbd><div><b>Done</b>Saves at full resolution and copies it. ⌘Z undoes.</div></li>
+        </ul>
+        <p class="credit">The editor was contributed by <a href="https://github.com/lafraia">@lafraia</a> in <a href="https://github.com/nearbycoder/snaps/pull/1">#1</a>.</p>
+      </div>
+      <div class="shot glass reveal">
+        <img src="assets/editor.jpg" width="1200" height="700" loading="lazy" alt="The Snaps editor with a red arrow pointing to the peak of a chart, the label “Best week yet!”, and the user count blurred out">
       </div>
     </div>
   </section>
@@ -395,6 +431,7 @@
       <div class="sc-row"><div class="what"><b>Window</b><span>Click any window to capture it</span></div><div class="keys"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>5</kbd></div></div>
       <div class="sc-row"><div class="what"><b>Full Screen</b><span>The display under your cursor</span></div><div class="keys"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>3</kbd></div></div>
       <div class="sc-row"><div class="what"><b>Gallery</b><span>Recent captures across the top of the screen</span></div><div class="keys"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>G</kbd></div></div>
+      <div class="sc-row"><div class="what"><b>In the editor</b><span>Select, arrow, text, blur · Done</span></div><div class="keys"><kbd>V</kbd><kbd>A</kbd><kbd>T</kbd><kbd>B</kbd><kbd>⌘↩</kbd></div></div>
     </div>
     <p class="note reveal">⌃ Control · ⇧ Shift. Everything is also one click away in the menu bar.</p>
   </section>
@@ -430,6 +467,8 @@
         <p>Every release is signed with an Apple Developer ID and notarized by Apple, so it opens without Gatekeeper warnings. The full source is on GitHub if you'd like to check it, or build it yourself.</p></details>
       <details class="glass reveal"><summary>Where do my captures go?</summary>
         <p>To your clipboard, always. Unsaved captures live in a private cache for 7 days so the gallery can show them. Turn on <b>Save to folder</b> in Settings to keep a copy on your Desktop or any folder you choose.</p></details>
+      <details class="glass reveal"><summary>Can I annotate a screenshot?</summary>
+        <p>Yes. Double-click the floating preview or a gallery card, or click its pencil button, to add arrows, text and blur. Done saves the annotations into the capture and copies it. To open every capture in the editor automatically, turn on <b>Open in the editor</b> in Settings.</p></details>
       <details class="glass reveal"><summary>Can I change the shortcuts or where previews appear?</summary>
         <p>Yes. Open Settings from the menu bar icon to record new shortcuts, pick a preview corner, set how long previews stay, and toggle the capture sound, window shadows and launch at login.</p></details>
     </div>

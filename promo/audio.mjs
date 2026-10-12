@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SR = 48000;
-const DURATION = 42;
+const DURATION = 49.5;
 const N = SR * DURATION;
 
 const music = [new Float32Array(N), new Float32Array(N)];
@@ -182,7 +182,7 @@ const CHORDS = [
   { root: 40, notes: [52, 55, 59, 62] },
   { root: 45, notes: [57, 60, 64, 67] },
 ];
-const OUTRO = 37.9; // outro starts (absolute)
+const OUTRO = 45.4; // outro starts (absolute)
 const bars = Math.ceil(DURATION / BAR);
 for (let b = 0; b < bars; b++) {
   const t0 = b * BAR, ch = CHORDS[b % 4];
@@ -226,7 +226,9 @@ add(music, OUTRO, (() => {
   add(music, t, bell(mtof(m), 2.2, 1.4), db(-20), k % 2 ? 0.3 : -0.3, 0.6));
 
 // ---------- effects (absolute times) ----------
-const S = 8.0; // main timeline offset (install scene)
+// Main-timeline seconds → absolute seconds (the install scene inserts 8s at 4.0, the editor scene 7.5s at 20.7).
+const M = (m) => (m < 4 ? m : m < 20.7 ? m + 8 : m + 15.5);
+const E0 = 28.7; // editor scene start (absolute)
 const fx = [];
 const at = (t, buf, gain, pan = 0, rev = 0.15) => fx.push([t, buf, gain, pan, rev]);
 
@@ -245,38 +247,54 @@ at(9.05, thunk(), db(-16));
 at(9.8, keyClick(), db(-12));
 at(9.9, chime([84, 91], 0.1), db(-16), 0, 0.4);
 // Area capture
-for (const k of [4.95, 5.1, 5.25]) at(k + S, keyClick(), db(-10), -0.1);
-at(6.35 + S, pop(700, 1000, 0.05), db(-24));
-at(7.66 + S, shutter(), db(-8));
-at(7.95 + S, whoosh(0.5, 600, 2400), db(-21), -0.5);
+for (const k of [4.95, 5.1, 5.25]) at(M(k), keyClick(), db(-10), -0.1);
+at(M(6.35), pop(700, 1000, 0.05), db(-24));
+at(M(7.66), shutter(), db(-8));
+at(M(7.95), whoosh(0.5, 600, 2400), db(-21), -0.5);
 // Paste + send
-at(9.9 + S, keyClick(), db(-14), 0.4);
-for (const k of [10.4, 10.55]) at(k + S, keyClick(), db(-10), 0.1);
-at(10.75 + S, pop(), db(-17), 0.4);
-at(11.35 + S, whoosh(0.35, 1200, 3200), db(-21), 0.5);
-at(11.4 + S, pop(800, 1400, 0.08), db(-22), 0.5);
+at(M(9.9), keyClick(), db(-14), 0.4);
+for (const k of [10.4, 10.55]) at(M(k), keyClick(), db(-10), 0.1);
+at(M(10.75), pop(), db(-17), 0.4);
+at(M(11.35), whoosh(0.35, 1200, 3200), db(-21), 0.5);
+at(M(11.4), pop(800, 1400, 0.08), db(-22), 0.5);
 // Window capture
-at(12.95 + S, whoosh(0.4, 500, 1600), db(-25));
-for (const k of [14.05, 14.2, 14.35]) at(k + S, keyClick(), db(-10), -0.1);
-at(16.0 + S, shutter(), db(-8));
-at(16.25 + S, whoosh(0.5, 600, 2400), db(-21), -0.5);
+at(M(12.95), whoosh(0.4, 500, 1600), db(-25));
+for (const k of [14.05, 14.2, 14.35]) at(M(k), keyClick(), db(-10), -0.1);
+at(M(16.0), shutter(), db(-8));
+at(M(16.25), whoosh(0.5, 600, 2400), db(-21), -0.5);
 // Drag & drop
-at(17.72 + S, pop(900, 1300, 0.06), db(-20), -0.4);
-at(17.8 + S, whoosh(1.1, 700, 1500), db(-29));
-at(18.95 + S, thunk(), db(-15), 0.4);
-at(20.2 + S, chime([81, 88], 0.07), db(-18), 0.5, 0.3);
+at(M(17.72), pop(900, 1300, 0.06), db(-20), -0.4);
+at(M(17.8), whoosh(1.1, 700, 1500), db(-29));
+at(M(18.95), thunk(), db(-15), 0.4);
+at(M(20.2), chime([81, 88], 0.07), db(-18), 0.5, 0.3);
+// Annotation editor scene
+at(E0 + 0.8, keyClick(), db(-13), -0.6);
+at(E0 + 0.95, keyClick(), db(-13), -0.6);
+at(E0 + 1.0, whoosh(0.45, 500, 2000), db(-21));
+at(E0 + 1.5, keyClick(), db(-10));
+at(E0 + 1.75, whoosh(1.2, 900, 1700), db(-30), 0.2);
+at(E0 + 2.95, pop(700, 1000, 0.05), db(-24), 0.3);
+at(E0 + 3.1, keyClick(), db(-10));
+at(E0 + 3.55, keyClick(), db(-15), 0.1);
+for (let i = 0; i < 14; i++) at(E0 + 3.6 + i * 0.06, keyClick(), db(-21 - (i % 3)), 0.1 + (i % 2) * 0.05);
+at(E0 + 4.6, keyClick(), db(-10));
+at(E0 + 5.05, whoosh(0.65, 400, 900), db(-26), -0.3);
+at(E0 + 6.45, keyClick(), db(-12), 0.5);
+at(E0 + 6.5, chime([84, 88, 91], 0.07), db(-17), 0.3, 0.35);
+at(E0 + 6.55, whoosh(0.35, 1800, 700), db(-24));
+at(E0 + 6.7, pop(), db(-18), -0.6);
 // Corner picker
-at(20.85 + S, keyClick(), db(-13), 0.6);
-at(20.9 + S, whoosh(0.3, 1200, 3000), db(-25), 0.6);
-at(22.15 + S, keyClick(), db(-12), 0.6);
-at(22.6 + S, whoosh(0.5, 500, 2200), db(-21), 0.6);
+at(M(20.85), keyClick(), db(-13), 0.6);
+at(M(20.9), whoosh(0.3, 1200, 3000), db(-25), 0.6);
+at(M(22.15), keyClick(), db(-12), 0.6);
+at(M(22.6), whoosh(0.5, 500, 2200), db(-21), 0.6);
 // Gallery
-for (const k of [25.05, 25.2, 25.35]) at(k + S, keyClick(), db(-10));
-at(25.5 + S, whoosh(0.6, 300, 1800), db(-19));
-for (let i = 0; i < 6; i++) at(25.78 + i * 0.07 + S, pop(700 + i * 60, 1100 + i * 80, 0.05), db(-27), -0.6 + i * 0.24);
-at(28.15 + S, keyClick(), db(-12));
-at(28.2 + S, pop(), db(-18));
-at(29.3 + S, whoosh(0.4, 1800, 600), db(-24));
+for (const k of [25.05, 25.2, 25.35]) at(M(k), keyClick(), db(-10));
+at(M(25.5), whoosh(0.6, 300, 1800), db(-19));
+for (let i = 0; i < 6; i++) at(M(25.78 + i * 0.07), pop(700 + i * 60, 1100 + i * 80, 0.05), db(-27), -0.6 + i * 0.24);
+at(M(28.15), keyClick(), db(-12));
+at(M(28.2), pop(), db(-18));
+at(M(29.3), whoosh(0.4, 1800, 600), db(-24));
 
 for (const [t, buf, gain, pan, rev] of fx) add(sfx, t, buf, gain, pan, rev);
 
