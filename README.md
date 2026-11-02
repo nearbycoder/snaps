@@ -37,7 +37,7 @@ Requires macOS 26 or later. Releases are signed with a Developer ID and notarize
 
 Change them in **Settings → Shortcuts**: click a shortcut and type a new combo. Esc cancels, Delete clears it.
 
-While you pick an area or a window, the window under the cursor is highlighted. A click captures that window on its own: transparent around it, cut to its rounded corners, with its shadow unless **Include window shadow** is off. Dragging selects an area instead, and shows its size in pixels. Esc or a right click cancels. The app you're capturing stays active the whole time, so its window looks the way you see it.
+While you pick an area or a window, the pointer becomes a crosshair across the display with a loupe beside it: the pixels under the cursor magnified, their position (or the selection's size) and their color. The window under the cursor gets a thin outline, and a click captures that window on its own: transparent around it, cut to its rounded corners, with its shadow unless **Include window shadow** is off. Dragging selects an area instead. Esc or a right click cancels. The app you're capturing stays active the whole time, so its window looks the way you see it.
 
 ## The preview
 
@@ -117,7 +117,7 @@ Sources/Snaps/
   SnapsMain.swift        app entry point (menu bar / accessory app)
   AppCoordinator.swift   wires hotkeys → capture → clipboard → preview
   AppSettings.swift      persisted preferences + runtime state
-  CaptureOverlay.swift   area and window picker drawn over every display
+  CaptureOverlay.swift   area and window picker (crosshair, loupe, window outline) over every display
   Capture.swift          screencapture wrapper, file storage, clipboard
   HotKeyCenter.swift     global shortcuts via Carbon hot keys
   Shortcut.swift         shortcut model + key names
