@@ -16,6 +16,9 @@ final class PreviewManager {
         self?.follow(to: screen)
     }
 
+    /// Called with a preview's file once the preview is gone.
+    var onRelease: ((URL) -> Void)?
+
     @discardableResult
     func show(image: NSImage, fileURL: URL) -> PreviewController {
         screen = NSScreen.underMouse
@@ -27,6 +30,7 @@ final class PreviewManager {
             self.items.removeAll { $0 === controller }
             if self.items.isEmpty { self.follower.stop() }
             self.layout(animated: true)
+            self.onRelease?(controller.model.fileURL)
         }
         items.append(controller)
 
@@ -34,9 +38,14 @@ final class PreviewManager {
             let oldest = items.removeFirst()
             oldest.onDismiss = nil
             oldest.dismiss()
+            onRelease?(oldest.model.fileURL)
         }
         layout(animated: true, presenting: controller)
         return controller
+    }
+
+    func isShowing(_ url: URL) -> Bool {
+        items.contains { $0.model.fileURL == url }
     }
 
     func setHidden(_ hidden: Bool) {

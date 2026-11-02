@@ -144,9 +144,10 @@ struct GalleryView: View {
                 Text("Gallery")
                     .font(.system(size: 15, weight: .semibold))
             }
-            Text(history.items.isEmpty ? "No captures yet" : "\(history.items.count) recent")
+            Text(subtitle)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: 0)
 
@@ -166,14 +167,21 @@ struct GalleryView: View {
         .padding(.vertical, 18)
     }
 
+    private var subtitle: String {
+        if !settings.keepInGallery {
+            return history.items.isEmpty ? "Off in Settings" : "\(history.items.count) recent. New captures aren’t kept."
+        }
+        return history.items.isEmpty ? "No captures yet" : "\(history.items.count) recent"
+    }
+
     private var emptyState: some View {
         VStack(spacing: 6) {
-            Image(systemName: "camera.viewfinder")
+            Image(systemName: settings.keepInGallery ? "camera.viewfinder" : "photo.stack")
                 .font(.system(size: 26))
                 .foregroundStyle(.secondary)
-            Text("Your captures will show up here")
+            Text(settings.keepInGallery ? "Your captures will show up here" : "The gallery is off")
                 .font(.system(size: 13, weight: .medium))
-            Text(emptyHint)
+            Text(settings.keepInGallery ? emptyHint : "Turn on Keep in the gallery in Settings to collect captures here.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }

@@ -433,11 +433,16 @@ final class AnnotationCanvasView: NSView, NSTextViewDelegate {
 
     // MARK: Keyboard
 
-    /// ⌘↩ finishes from anywhere in the window, including while typing text.
+    /// ⌘↩ finishes from anywhere in the window, including while typing text. ⌃C copies like ⌘C, for
+    /// hands used to Control from other systems.
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
         if modifiers == .command, [kVK_Return, kVK_ANSI_KeypadEnter].contains(Int(event.keyCode)) {
             onDone?()
+            return true
+        }
+        if modifiers == .control, event.charactersIgnoringModifiers?.lowercased() == "c" {
+            onCopy?()
             return true
         }
         return super.performKeyEquivalent(with: event)
@@ -445,6 +450,11 @@ final class AnnotationCanvasView: NSView, NSTextViewDelegate {
 
     override func keyDown(with event: NSEvent) {
         let modifiers = event.modifierFlags.intersection([.command, .control, .option])
+        // In case ⌃C arrives as a plain key press rather than a key equivalent.
+        if modifiers == .control, event.charactersIgnoringModifiers?.lowercased() == "c" {
+            onCopy?()
+            return
+        }
         if modifiers.isEmpty,
            let key = event.charactersIgnoringModifiers?.lowercased(),
            let tool = AnnotationTool.allCases.first(where: { $0.key == key }) {

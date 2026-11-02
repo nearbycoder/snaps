@@ -65,29 +65,7 @@ struct SettingsView: View {
             }
 
             GlassSection("Preview", symbol: "rectangle.on.rectangle") {
-                HStack(spacing: 16) {
-                    CornerPicker(selection: $settings.corner)
-                        .frame(width: 112, height: 72)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Show previews in the \(settings.corner.title.lowercased()) corner")
-                            .font(.system(size: 13, weight: .medium))
-                        Text("Drag a preview into any app, or press ⌘V: it’s already on your clipboard.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                Divider().opacity(0.5)
-                HStack {
-                    Text("Dismiss after").font(.system(size: 13))
-                    Spacer()
-                    Picker("Dismiss after", selection: $settings.previewDuration) {
-                        ForEach(PreviewDuration.allCases) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .fixedSize()
-                }
+                previewOptions
             }
 
             GlassSection("After Capture", symbol: "sparkles") {
@@ -108,13 +86,22 @@ struct SettingsView: View {
                     }
                 }
                 SettingToggle(
+                    "Keep in the gallery",
+                    detail: "When off, a capture that isn’t saved to a folder is gone once you close it.",
+                    isOn: $settings.keepInGallery
+                )
+                SettingToggle(
                     "Open in the editor",
                     detail: "Every capture opens ready to annotate, with the arrow selected.",
                     isOn: $settings.openEditorAfterCapture
                 )
                 Divider().opacity(0.5)
                 SettingToggle("Play capture sound", isOn: $settings.playSound)
-                SettingToggle("Include window shadow", isOn: $settings.includeWindowShadow)
+                SettingToggle(
+                    "Include window shadow",
+                    detail: "When off, a window capture follows the window’s exact outline.",
+                    isOn: $settings.includeWindowShadow
+                )
             }
 
             GlassSection("General", symbol: "gearshape") {
@@ -132,6 +119,49 @@ struct SettingsView: View {
         .background {
             VisualEffectBackground().ignoresSafeArea()
         }
+    }
+
+    /// The switch sits on the corner row, whose sentence already says what it turns on.
+    private var previewOptions: some View {
+        let isOn = settings.showPreview
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 16) {
+                CornerPicker(selection: $settings.corner)
+                    .frame(width: 112, height: 72)
+                    .disabled(!isOn)
+                    .opacity(isOn ? 1 : 0.4)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(isOn ? "Show previews in the \(settings.corner.title.lowercased()) corner" : "Previews are off")
+                        .font(.system(size: 13, weight: .medium))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(isOn
+                        ? "Drag a preview into any app, or press ⌘V: it’s already on your clipboard."
+                        : "Captures go to your clipboard, or straight to the editor when it’s on.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Toggle("Show previews", isOn: $settings.showPreview)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+            }
+            Divider().opacity(0.5)
+            HStack {
+                Text("Dismiss after").font(.system(size: 13))
+                Spacer()
+                Picker("Dismiss after", selection: $settings.previewDuration) {
+                    ForEach(PreviewDuration.allCases) { Text($0.title).tag($0) }
+                }
+                .pickerStyle(.menu)
+                .labelsHidden()
+                .fixedSize()
+            }
+            .disabled(!isOn)
+            .opacity(isOn ? 1 : 0.4)
+        }
+        .animation(.easeInOut(duration: Motion.quick), value: isOn)
     }
 
     private var header: some View {

@@ -17,7 +17,7 @@ enum CaptureMode: String, CaseIterable, Identifiable, Codable {
 
     var detail: String {
         switch self {
-        case .area: "Drag to select a region"
+        case .area: "Drag a region, or click a window"
         case .window: "Click a window to capture it"
         case .screen: "The display under your cursor"
         }
@@ -103,6 +103,8 @@ final class AppSettings: ObservableObject {
         static let sound = "playSound"
         static let shadow = "includeWindowShadow"
         static let openEditor = "openEditorAfterCapture"
+        static let showPreview = "showPreview"
+        static let keepInGallery = "keepInGallery"
         static let shortcuts = "shortcuts"
         static let launched = "hasLaunchedBefore"
     }
@@ -131,6 +133,14 @@ final class AppSettings: ObservableObject {
     @Published var openEditorAfterCapture: Bool {
         didSet { defaults.set(openEditorAfterCapture, forKey: Key.openEditor) }
     }
+    /// The floating preview in the corner after each capture.
+    @Published var showPreview: Bool {
+        didSet { defaults.set(showPreview, forKey: Key.showPreview) }
+    }
+    /// Whether new captures are added to the gallery. Off, a capture lasts only as long as it's on screen.
+    @Published var keepInGallery: Bool {
+        didSet { defaults.set(keepInGallery, forKey: Key.keepInGallery) }
+    }
     @Published private(set) var shortcuts: [ShortcutAction: Shortcut] {
         didSet { saveShortcuts() }
     }
@@ -144,6 +154,8 @@ final class AppSettings: ObservableObject {
             Key.sound: true,
             Key.shadow: true,
             Key.openEditor: false,
+            Key.showPreview: true,
+            Key.keepInGallery: true,
             Key.duration: PreviewDuration.medium.rawValue,
         ])
 
@@ -154,6 +166,8 @@ final class AppSettings: ObservableObject {
         playSound = defaults.bool(forKey: Key.sound)
         includeWindowShadow = defaults.bool(forKey: Key.shadow)
         openEditorAfterCapture = defaults.bool(forKey: Key.openEditor)
+        showPreview = defaults.bool(forKey: Key.showPreview)
+        keepInGallery = defaults.bool(forKey: Key.keepInGallery)
         saveFolder = defaults.string(forKey: Key.folder).map { URL(fileURLWithPath: $0) }
             ?? FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
 

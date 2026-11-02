@@ -1,3 +1,4 @@
+import QuartzCore
 import SwiftUI
 
 /// Durations and curves from transitions.dev. Pick a token by what is moving, not by the closest number.
@@ -11,6 +12,9 @@ enum Motion {
     static func smoothOut(_ duration: Double) -> Animation {
         .timingCurve(0.22, 1, 0.36, 1, duration: duration)
     }
+
+    /// `smoothOut` for Core Animation layers.
+    static let smoothOutCurve = CAMediaTimingFunction(controlPoints: 0.22, 1, 0.36, 1)
 
     /// A glass pill that pops in and fades out faster than it came. Reduce Motion keeps only the fade.
     static func pill(reduceMotion: Bool) -> AnyTransition {

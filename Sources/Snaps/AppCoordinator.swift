@@ -39,6 +39,12 @@ final class AppCoordinator {
             .sink { [weak self] _ in self?.state.refreshPermission() }
             .store(in: &cancellables)
 
+        // Captures kept nowhere else go away once nothing on screen shows them.
+        previews.onRelease = { [weak self] url in self?.discardWhenUnused(url) }
+        AnnotationEditor.shared.didClose
+            .sink { [weak self] url in self?.discardWhenUnused(url) }
+            .store(in: &cancellables)
+
         if !ScreenPermission.isGranted {
             // Let the menu bar item settle, then guide the user to the permission.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
@@ -63,16 +69,39 @@ final class AppCoordinator {
     func capture(_ mode: CaptureMode) {
         guard !isCapturing else { return }
         isCapturing = true
-        statusBar?.closePopover(restoreFocus: true)
+        let hadPopover = statusBar?.closePopover(restoreFocus: true) ?? false
         gallery.hide()
 
         Task { @MainActor in
             defer { isCapturing = false }
 
             previews.setHidden(true)
-            // Give the popover a moment to disappear so it isn't in the shot.
-            try? await Task.sleep(for: .milliseconds(150))
-            let captured = await ScreenCapturer.capture(mode, settings: settings)
+            if hadPopover {
+                // Give the popover a moment to disappear so it isn't in the shot.
+                try? await Task.sleep(for: .milliseconds(150))
+            }
+
+            let target: CaptureTarget?
+            switch mode {
+            case .area, .window:
+                target = await CaptureOverlay.pick(allowsArea: mode == .area)
+                if case .area = target {
+                    // Let the window server take the overlay off screen before the pixels are read.
+                    try? await Task.sleep(for: .milliseconds(80))
+                }
+            case .screen:
+                if !hadPopover {
+                    // Same for hidden previews.
+                    try? await Task.sleep(for: .milliseconds(80))
+                }
+                target = NSScreen.underMouse.map { .area($0.frame) }
+            }
+
+            guard let target else {
+                previews.setHidden(false)
+                return
+            }
+            let captured = await ScreenCapturer.capture(target, settings: settings)
             previews.setHidden(false)
 
             guard var url = captured, let image = NSImage(contentsOf: url) else {
@@ -90,11 +119,40 @@ final class AppCoordinator {
             if settings.copyToClipboard {
                 Clipboard.copy(image: image, pngURL: url)
             }
-            CaptureHistory.shared.add(url: url, size: image.size)
-            let preview = previews.show(image: image, fileURL: url)
+            let item = settings.keepInGallery ? CaptureHistory.shared.add(url: url, size: image.size) : nil
+
+            let preview = settings.showPreview ? previews.show(image: image, fileURL: url) : nil
             if settings.openEditorAfterCapture {
-                preview.annotate()
+                if let preview {
+                    preview.annotate()
+                } else {
+                    let captureURL = url
+                    AnnotationEditor.shared.open(url, target: {
+                        guard let item else { return captureURL }
+                        return CaptureHistory.shared.items.first { $0.id == item.id }?.url
+                    })
+                }
             }
+            discardWhenUnused(url)
+        }
+    }
+
+    /// A capture that's neither in the gallery nor saved to a folder lives only in the cache. Once no
+    /// preview or editor shows it, it's deleted, after a grace period in case an app is still reading a
+    /// copy that was dragged out of the preview.
+    private func discardWhenUnused(_ url: URL) {
+        func isUnused() -> Bool {
+            CaptureStorage.isInCache(url)
+                && !CaptureHistory.shared.contains(url)
+                && !previews.isShowing(url)
+                && !AnnotationEditor.shared.isOpen(url)
+        }
+        guard isUnused() else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(60))
+            guard isUnused() else { return }
+            AnnotationEditor.shared.forget(url)
+            try? FileManager.default.removeItem(at: url)
         }
     }
 
