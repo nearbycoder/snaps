@@ -33,20 +33,69 @@ enum CaptureMode: String, CaseIterable, Identifiable, Codable {
 
 }
 
+/// What a screen recording turns into.
+enum RecordingFormat: String, CaseIterable, Identifiable {
+    case video, gif
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .video: "Record Video"
+        case .gif: "Record GIF"
+        }
+    }
+
+    var shortTitle: String {
+        switch self {
+        case .video: "Video"
+        case .gif: "GIF"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .video: "Record an area, a window or a screen as MP4"
+        case .gif: "Record an area, a window or a screen as an animated GIF"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .video: "record.circle"
+        case .gif: "rectangle.stack.badge.play"
+        }
+    }
+}
+
 /// Everything that can be bound to a global shortcut.
 enum ShortcutAction: String, CaseIterable, Identifiable {
-    case area, window, screen, gallery
+    case area, window, screen, recordVideo, recordGIF, gallery
 
     init(_ mode: CaptureMode) {
         self = ShortcutAction(rawValue: mode.rawValue)!
     }
 
+    init(_ format: RecordingFormat) {
+        self = format == .video ? .recordVideo : .recordGIF
+    }
+
     var id: String { rawValue }
     var captureMode: CaptureMode? { CaptureMode(rawValue: rawValue) }
 
-    var title: String { captureMode?.title ?? "Gallery" }
-    var detail: String { captureMode?.detail ?? "Browse recent captures across the top of the screen" }
-    var symbol: String { captureMode?.symbol ?? "photo.stack" }
+    var recordingFormat: RecordingFormat? {
+        switch self {
+        case .recordVideo: .video
+        case .recordGIF: .gif
+        default: nil
+        }
+    }
+
+    var title: String { captureMode?.title ?? recordingFormat?.title ?? "Gallery" }
+    var detail: String {
+        captureMode?.detail ?? recordingFormat?.detail ?? "Browse recent captures across the top of the screen"
+    }
+    var symbol: String { captureMode?.symbol ?? recordingFormat?.symbol ?? "photo.stack" }
 
     var hotKeyID: UInt32 {
         switch self {
@@ -54,6 +103,8 @@ enum ShortcutAction: String, CaseIterable, Identifiable {
         case .window: 2
         case .screen: 3
         case .gallery: 4
+        case .recordVideo: 5
+        case .recordGIF: 6
         }
     }
 }
@@ -87,6 +138,36 @@ enum PreviewDuration: Int, CaseIterable, Identifiable {
     var interval: TimeInterval? { self == .forever ? nil : TimeInterval(rawValue) }
 }
 
+enum VideoFrameRate: Int, CaseIterable, Identifiable {
+    case thirty = 30
+    case sixty = 60
+
+    var id: Int { rawValue }
+    var title: String { "\(rawValue) fps" }
+}
+
+enum GIFFrameRate: Int, CaseIterable, Identifiable {
+    case ten = 10
+    case fifteen = 15
+    case twenty = 20
+    case twentyFive = 25
+
+    var id: Int { rawValue }
+    var title: String { "\(rawValue) fps" }
+}
+
+/// The widest a GIF gets, in pixels. Retina recordings are halved first, so `full` is the size in points.
+enum GIFSize: Int, CaseIterable, Identifiable {
+    case small = 480
+    case medium = 720
+    case large = 1080
+    case full = 0
+
+    var id: Int { rawValue }
+    var title: String { self == .full ? "Full size" : "\(rawValue) px wide" }
+    var maxWidth: Int? { self == .full ? nil : rawValue }
+}
+
 /// Persisted user preferences.
 @MainActor
 final class AppSettings: ObservableObject {
@@ -105,6 +186,14 @@ final class AppSettings: ObservableObject {
         static let openEditor = "openEditorAfterCapture"
         static let showPreview = "showPreview"
         static let keepInGallery = "keepInGallery"
+        static let recordCursor = "recordShowsCursor"
+        static let recordClicks = "recordHighlightsClicks"
+        static let recordSystemAudio = "recordSystemAudio"
+        static let recordMicrophone = "recordMicrophone"
+        static let recordCountdown = "recordCountdown"
+        static let videoFrameRate = "videoFrameRate"
+        static let gifFrameRate = "gifFrameRate"
+        static let gifSize = "gifSize"
         static let shortcuts = "shortcuts"
         static let launched = "hasLaunchedBefore"
     }
@@ -141,6 +230,30 @@ final class AppSettings: ObservableObject {
     @Published var keepInGallery: Bool {
         didSet { defaults.set(keepInGallery, forKey: Key.keepInGallery) }
     }
+    @Published var recordShowsCursor: Bool {
+        didSet { defaults.set(recordShowsCursor, forKey: Key.recordCursor) }
+    }
+    @Published var recordHighlightsClicks: Bool {
+        didSet { defaults.set(recordHighlightsClicks, forKey: Key.recordClicks) }
+    }
+    @Published var recordSystemAudio: Bool {
+        didSet { defaults.set(recordSystemAudio, forKey: Key.recordSystemAudio) }
+    }
+    @Published var recordMicrophone: Bool {
+        didSet { defaults.set(recordMicrophone, forKey: Key.recordMicrophone) }
+    }
+    @Published var recordCountdown: Bool {
+        didSet { defaults.set(recordCountdown, forKey: Key.recordCountdown) }
+    }
+    @Published var videoFrameRate: VideoFrameRate {
+        didSet { defaults.set(videoFrameRate.rawValue, forKey: Key.videoFrameRate) }
+    }
+    @Published var gifFrameRate: GIFFrameRate {
+        didSet { defaults.set(gifFrameRate.rawValue, forKey: Key.gifFrameRate) }
+    }
+    @Published var gifSize: GIFSize {
+        didSet { defaults.set(gifSize.rawValue, forKey: Key.gifSize) }
+    }
     @Published private(set) var shortcuts: [ShortcutAction: Shortcut] {
         didSet { saveShortcuts() }
     }
@@ -157,6 +270,14 @@ final class AppSettings: ObservableObject {
             Key.showPreview: true,
             Key.keepInGallery: true,
             Key.duration: PreviewDuration.medium.rawValue,
+            Key.recordCursor: true,
+            Key.recordClicks: true,
+            Key.recordSystemAudio: false,
+            Key.recordMicrophone: false,
+            Key.recordCountdown: true,
+            Key.videoFrameRate: VideoFrameRate.thirty.rawValue,
+            Key.gifFrameRate: GIFFrameRate.fifteen.rawValue,
+            Key.gifSize: GIFSize.medium.rawValue,
         ])
 
         corner = ScreenCorner(rawValue: defaults.string(forKey: Key.corner) ?? "") ?? .bottomLeft
@@ -168,6 +289,14 @@ final class AppSettings: ObservableObject {
         openEditorAfterCapture = defaults.bool(forKey: Key.openEditor)
         showPreview = defaults.bool(forKey: Key.showPreview)
         keepInGallery = defaults.bool(forKey: Key.keepInGallery)
+        recordShowsCursor = defaults.bool(forKey: Key.recordCursor)
+        recordHighlightsClicks = defaults.bool(forKey: Key.recordClicks)
+        recordSystemAudio = defaults.bool(forKey: Key.recordSystemAudio)
+        recordMicrophone = defaults.bool(forKey: Key.recordMicrophone)
+        recordCountdown = defaults.bool(forKey: Key.recordCountdown)
+        videoFrameRate = VideoFrameRate(rawValue: defaults.integer(forKey: Key.videoFrameRate)) ?? .thirty
+        gifFrameRate = GIFFrameRate(rawValue: defaults.integer(forKey: Key.gifFrameRate)) ?? .fifteen
+        gifSize = GIFSize(rawValue: defaults.integer(forKey: Key.gifSize)) ?? .medium
         saveFolder = defaults.string(forKey: Key.folder).map { URL(fileURLWithPath: $0) }
             ?? FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
 
@@ -234,6 +363,7 @@ final class AppState: ObservableObject {
     @Published var hasScreenPermission = ScreenPermission.isGranted
     @Published var unavailableShortcuts: Set<ShortcutAction> = []
     @Published var isRecordingShortcut = false
+    @Published var settingsTab: SettingsTab = .general
 
     func refreshPermission() {
         let granted = ScreenPermission.isGranted

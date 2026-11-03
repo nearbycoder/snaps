@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Snaps — recording illustration</title>
+<!-- 1200×700 illustration of a recording in progress for the site. Rendered to docs/assets/record.jpg by `npm run record`. -->
+<style>
+  :root { --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1200px; height: 700px; overflow: hidden; font-family: var(--ui); -webkit-font-smoothing: antialiased; }
+  .abs { position: absolute; }
+  #desk { position: absolute; inset: 0; overflow: hidden;
+    background:
+      radial-gradient(520px 400px at 10% 16%, #7dd3fc, transparent 70%),
+      radial-gradient(640px 500px at 88% 12%, #a78bfa, transparent 70%),
+      radial-gradient(640px 500px at 70% 100%, #6366f1, transparent 70%),
+      radial-gradient(560px 420px at 6% 100%, #22d3ee, transparent 70%),
+      linear-gradient(160deg, #60a5fa, #4f46e5); }
+
+  .glass { background: rgba(255,255,255,0.16); -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.42);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -1px 0 rgba(255,255,255,0.12), 0 16px 40px rgba(10,14,40,0.35); }
+
+  #menubar { left: 0; top: 0; width: 1200px; height: 28px; display: flex; align-items: center; gap: 18px; padding: 0 14px;
+    color: white; font-size: 13px; font-weight: 500; background: rgba(255,255,255,0.14); -webkit-backdrop-filter: blur(30px); backdrop-filter: blur(30px); }
+  #menubar b { font-weight: 700; }
+  #menubar .right { margin-left: auto; display: flex; align-items: center; gap: 16px; }
+  .rec-item { display: flex; align-items: center; gap: 5px; padding: 2px 8px 2px 4px; border-radius: 6px; background: rgba(255,255,255,0.28);
+    font: 600 12.5px ui-monospace, "SF Mono", monospace; font-variant-numeric: tabular-nums; }
+  .rec-item i { width: 15px; height: 15px; border-radius: 50%; background: #ff3b30; display: grid; place-items: center; }
+  .rec-item i::after { content: ""; width: 5px; height: 5px; background: white; border-radius: 1px; }
+
+  .window { border-radius: 14px; background: #fbfbfd; box-shadow: 0 22px 50px rgba(15,23,60,0.35), 0 0 0 1px rgba(0,0,0,0.06); overflow: hidden; }
+  .window .bar { height: 34px; display: flex; align-items: center; gap: 7px; padding: 0 14px; border-bottom: 1px solid #eceef3; font: 600 12.5px var(--ui); color: #3b4255; }
+  .window .bar i { width: 11px; height: 11px; border-radius: 50%; display: block; }
+  .window .bar span { margin-left: 12px; }
+
+  /* The app being recorded: a little product board with a card being dragged. */
+  .board { display: flex; gap: 14px; padding: 18px; }
+  .col { flex: 1; background: #f1f3f8; border-radius: 12px; padding: 10px; min-height: 330px; }
+  .col h4 { font: 700 11.5px var(--ui); color: #687089; letter-spacing: .3px; text-transform: uppercase; margin: 2px 4px 10px; }
+  .card { background: white; border-radius: 10px; padding: 10px 11px; margin-bottom: 9px; box-shadow: 0 1px 2px rgba(15,23,60,.08), 0 0 0 1px rgba(15,23,60,.05); }
+  .card .t { font: 600 12.5px var(--ui); color: #1d2333; }
+  .card .m { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+  .tag { font: 700 9.5px var(--ui); padding: 3px 7px; border-radius: 99px; }
+  .av { width: 18px; height: 18px; border-radius: 50%; margin-left: auto; }
+  .dragging { position: absolute; transform: rotate(-3deg); box-shadow: 0 18px 30px rgba(15,23,60,.22), 0 0 0 1px rgba(15,23,60,.05); width: 186px; }
+
+  #dim { inset: 0; background: rgba(0,0,0,0.30); }
+  #hole { border-radius: 2px; box-shadow: 0 0 0 2000px rgba(0,0,0,0.30); }
+  #outline { border: 1.5px dashed rgba(255,255,255,0.95); outline: 3px solid rgba(0,0,0,0.22); outline-offset: 0; }
+  .click { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(255,255,255,.95); box-shadow: 0 0 0 3px rgba(0,0,0,.18), inset 0 0 0 3px rgba(0,0,0,.12); }
+
+  #hud { display: flex; align-items: center; gap: 8px; padding: 0 8px 0 14px; height: 48px; border-radius: 24px; }
+  #hud .dot { width: 10px; height: 10px; border-radius: 50%; background: #ff3b30; box-shadow: 0 0 10px rgba(255,59,48,.8); }
+  #hud .time { color: white; font: 700 14px ui-monospace, "SF Mono", monospace; font-variant-numeric: tabular-nums; min-width: 48px; text-shadow: 0 1px 2px rgba(0,0,0,.2); }
+  .btn { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; color: white;
+    background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.35); box-shadow: inset 0 1px 0 rgba(255,255,255,.45); }
+  .btn.stop { background: rgba(255,59,48,0.85); border-color: rgba(255,255,255,.5); width: 34px; height: 34px; }
+
+  .preview { width: 262px; padding: 6px; border-radius: 20px; }
+  .preview .shot { position: relative; border-radius: 14px; overflow: hidden; height: 150px; background: #fbfbfd; }
+  .badge { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 5px; align-items: center; padding: 4px 8px; border-radius: 99px;
+    background: rgba(0,0,0,.58); color: white; font: 800 10px var(--ui); }
+  .badge span { font: 600 11px ui-monospace, "SF Mono", monospace; }
+  .toast { padding: 7px 13px; border-radius: 999px; font: 800 13px var(--ui); color: #0f172a; background: rgba(255,255,255,.88); box-shadow: 0 8px 20px rgba(15,20,70,.3); }
+
+  .cursor { width: 26px; height: 30px; }
+</style>
+</head>
+<body>
+<div id="desk">
+  <div id="menubar" class="abs">
+    <svg width="13" height="15" viewBox="0 0 17 20"><path d="M12.6 10.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.9-.9-3-.8-1.6 0-3 .9-3.8 2.3-1.6 2.8-.4 6.9 1.2 9.2.8 1.1 1.7 2.3 2.9 2.3 1.2-.1 1.6-.8 3-.8s1.8.8 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.6s-2.5-1-2.5-3.6zM10.4 3.8c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.7 1.4-.6.7-1.1 1.8-1 2.9 1 .1 2.1-.5 2.7-1.3z" fill="white"/></svg>
+    <b>Board</b><span>File</span><span>Edit</span><span>View</span><span>Window</span>
+    <div class="right">
+      <div class="rec-item"><i></i>0:12</div>
+      <svg width="16" height="12" viewBox="0 0 16 12"><path d="M8 11.5 1 4.2a10 10 0 0 1 14 0z" fill="white"/></svg>
+      <span>Mon 9:41 AM</span>
+    </div>
+  </div>
+
+  <!-- background window -->
+  <div class="window abs" style="left:742px;top:74px;width:400px;height:250px;opacity:.95">
+    <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span>Notes</span></div>
+    <div style="padding:16px 18px;font:500 12.5px var(--ui);color:#4a5168;line-height:1.75">
+      <b style="font:700 16px var(--ui);color:#1d2333">Sprint review</b><br>· Demo the new board drag<br>· Record a GIF for the changelog<br>· Ship 1.1 on Friday
+    </div>
+  </div>
+
+  <!-- app being recorded -->
+  <div class="window abs" style="left:64px;top:96px;width:640px;height:440px">
+    <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span>Board · Sprint 24</span></div>
+    <div class="board">
+      <div class="col"><h4>To do</h4>
+        <div class="card"><div class="t">Onboarding checklist</div><div class="m"><span class="tag" style="background:#e0e7ff;color:#4338ca">Design</span><i class="av" style="background:linear-gradient(135deg,#fda4af,#f43f5e)"></i></div></div>
+        <div class="card"><div class="t">Empty states copy</div><div class="m"><span class="tag" style="background:#fef3c7;color:#b45309">Docs</span><i class="av" style="background:linear-gradient(135deg,#93c5fd,#2563eb)"></i></div></div>
+        <div class="card" style="opacity:.35;border:1.5px dashed #a5b4fc;box-shadow:none"><div class="t" style="color:#94a3b8">Drag-to-reorder cards</div><div class="m"><span class="tag" style="background:#f1f5f9;color:#94a3b8">Feature</span></div></div>
+      </div>
+      <div class="col"><h4>In progress</h4>
+        <div class="card"><div class="t">Keyboard shortcuts</div><div class="m"><span class="tag" style="background:#dcfce7;color:#15803d">Feature</span><i class="av" style="background:linear-gradient(135deg,#86efac,#16a34a)"></i></div></div>
+        <div class="card" style="height:46px;background:#e0e7ff;box-shadow:inset 0 0 0 1.5px #a5b4fc"></div>
+      </div>
+      <div class="col"><h4>Done</h4>
+        <div class="card"><div class="t">Dark mode</div><div class="m"><span class="tag" style="background:#e0e7ff;color:#4338ca">Design</span><i class="av" style="background:linear-gradient(135deg,#fcd34d,#f59e0b)"></i></div></div>
+        <div class="card"><div class="t">Export to CSV</div><div class="m"><span class="tag" style="background:#dcfce7;color:#15803d">Feature</span><i class="av" style="background:linear-gradient(135deg,#c4b5fd,#7c3aed)"></i></div></div>
+      </div>
+    </div>
+    <div class="card dragging" style="left:262px;top:196px"><div class="t">Drag-to-reorder cards</div><div class="m"><span class="tag" style="background:#dcfce7;color:#15803d">Feature</span><i class="av" style="background:linear-gradient(135deg,#fda4af,#f43f5e)"></i></div></div>
+  </div>
+
+  <!-- the recorded area's outline (never in the recording itself) -->
+  <div id="outline" class="abs" style="left:60px;top:92px;width:648px;height:448px"></div>
+  <div class="click abs" style="left:420px;top:236px"></div>
+  <svg class="cursor abs" style="left:436px;top:250px" viewBox="0 0 17 20"><path d="M1.5 1.2v15.6l3.9-3.7 2.6 5.9 2.6-1.1-2.5-5.8h5.4z" fill="black" stroke="white" stroke-width="1.3" stroke-linejoin="round"/></svg>
+
+  <!-- recording controls under the area -->
+  <div id="hud" class="abs glass" style="left:244px;top:556px">
+    <div class="dot"></div><div class="time">0:12</div>
+    <div style="width:18px"></div>
+    <div class="btn"><svg width="11" height="12" viewBox="0 0 11 12" fill="white"><rect x="1" y="1" width="3.2" height="10" rx="1"/><rect x="6.8" y="1" width="3.2" height="10" rx="1"/></svg></div>
+    <div class="btn"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7a4.5 4.5 0 1 0 1.4-3.3"/><path d="M2.3 1.8v2.6h2.6"/></svg></div>
+    <div class="btn"><svg width="12" height="13" viewBox="0 0 12 13" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"><path d="M1 3h10M4.5 3V1.5h3V3M2.5 3l.6 8.5h5.8L9.5 3"/></svg></div>
+    <div class="btn stop"><svg width="11" height="11" viewBox="0 0 11 11"><rect width="11" height="11" rx="2" fill="white"/></svg></div>
+  </div>
+
+  <!-- the previous recording, as a GIF preview -->
+  <div class="abs toast" style="left:806px;top:452px">✓ Copied</div>
+  <div class="preview glass abs" style="left:742px;top:496px">
+    <div class="shot">
+      <div style="display:flex;gap:7px;padding:10px">
+        <div style="flex:1;background:#f1f3f8;border-radius:7px;height:126px;padding:6px"><div style="background:white;height:22px;border-radius:5px;margin-bottom:5px"></div><div style="background:white;height:22px;border-radius:5px"></div></div>
+        <div style="flex:1;background:#f1f3f8;border-radius:7px;height:126px;padding:6px"><div style="background:white;height:22px;border-radius:5px;margin-bottom:5px"></div><div style="background:#e0e7ff;height:22px;border-radius:5px"></div></div>
+        <div style="flex:1;background:#f1f3f8;border-radius:7px;height:126px;padding:6px"><div style="background:white;height:22px;border-radius:5px;margin-bottom:5px"></div><div style="background:white;height:22px;border-radius:5px"></div></div>
+      </div>
+      <div class="badge">GIF <span>0:08</span></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

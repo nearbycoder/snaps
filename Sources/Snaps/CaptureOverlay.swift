@@ -124,8 +124,9 @@ final class CaptureOverlay {
             for panel in panels { panel.view.showOutline(nil) }
         }
 
-        let start = drag.start.clamped(to: drag.bounds)
-        let end = point.clamped(to: drag.bounds)
+        // Whole points, so the outline, the size readout and the capture all agree.
+        let start = drag.start.clamped(to: drag.bounds).rounded
+        let end = point.clamped(to: drag.bounds).rounded
         let rect = CGRect(
             x: min(start.x, end.x),
             y: min(start.y, end.y),
@@ -259,6 +260,10 @@ final class CaptureOverlay {
                   let bounds = CGRect(dictionaryRepresentation: boundsInfo as CFDictionary),
                   bounds.width >= 40, bounds.height >= 40
             else { return nil }
+            // Above normal windows, skip anything as big as a display (dimmers, focus overlays).
+            if layer > 0, NSScreen.screens.contains(where: { $0.frame.width <= bounds.width + 1 && $0.frame.height <= bounds.height + 1 }) {
+                return nil
+            }
             // Quartz window bounds have a top-left origin on the primary display.
             let frame = CGRect(
                 x: bounds.minX,
@@ -735,4 +740,8 @@ private extension CGPoint {
     func clamped(to rect: CGRect) -> CGPoint {
         CGPoint(x: min(max(x, rect.minX), rect.maxX), y: min(max(y, rect.minY), rect.maxY))
     }
+}
+
+private extension CGPoint {
+    var rounded: CGPoint { CGPoint(x: x.rounded(), y: y.rounded()) }
 }

@@ -25,6 +25,7 @@ targets:
         PRODUCT_NAME: Snaps
         PRODUCT_BUNDLE_IDENTIFIER: dev.nearby.Snaps
         INFOPLIST_FILE: Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Resources/Snaps.entitlements
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_IDENTITY: "Apple Development"
         ENABLE_APP_SANDBOX: NO

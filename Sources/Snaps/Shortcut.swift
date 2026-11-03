@@ -16,6 +16,8 @@ struct Shortcut: Codable, Hashable {
         .area: Shortcut(keyCode: UInt32(kVK_ANSI_4), modifiers: [.control, .shift]),
         .window: Shortcut(keyCode: UInt32(kVK_ANSI_5), modifiers: [.control, .shift]),
         .screen: Shortcut(keyCode: UInt32(kVK_ANSI_3), modifiers: [.control, .shift]),
+        .recordVideo: Shortcut(keyCode: UInt32(kVK_ANSI_6), modifiers: [.control, .shift]),
+        .recordGIF: Shortcut(keyCode: UInt32(kVK_ANSI_7), modifiers: [.control, .shift]),
         .gallery: Shortcut(keyCode: UInt32(kVK_ANSI_G), modifiers: [.control, .shift]),
     ]
 

@@ -4,8 +4,9 @@
 #   ./Scripts/release.sh publish    ...then tag v<version> and publish a GitHub release
 #
 # Signing and notarization go through the Apple account you're signed into in Xcode
-# (Xcode → Settings → Accounts). Bump CFBundleShortVersionString and CFBundleVersion
-# in Resources/Info.plist before each release.
+# (Xcode → Settings → Accounts), or, with no account signed in, an App Store Connect
+# API key (Admin role): set ASC_KEY_PATH (the .p8 file), ASC_KEY_ID and ASC_ISSUER_ID.
+# Bump CFBundleShortVersionString and CFBundleVersion in Resources/Info.plist before each release.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -18,6 +19,12 @@ NOTARIZED="build/notarized"
 OUT="build/release"
 
 command -v xcodegen >/dev/null || { echo "XcodeGen is required: brew install xcodegen"; exit 1; }
+
+AUTH_ARGS=()
+if [[ -n "${ASC_KEY_PATH:-}" ]]; then
+  : "${ASC_KEY_ID:?Set ASC_KEY_ID with ASC_KEY_PATH}" "${ASC_ISSUER_ID:?Set ASC_ISSUER_ID with ASC_KEY_PATH}"
+  AUTH_ARGS=(-authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID")
+fi
 
 if [[ "$ACTION" == "publish" ]] && git rev-parse "$TAG" >/dev/null 2>&1; then
   echo "Tag $TAG already exists. Bump the version in Resources/Info.plist first."
@@ -36,9 +43,13 @@ xcodebuild archive \
   -destination 'generic/platform=macOS' \
   -archivePath "$ARCHIVE" \
   -allowProvisioningUpdates \
+  ${AUTH_ARGS[@]+"${AUTH_ARGS[@]}"} \
   -quiet
 
 echo "→ Signing with Developer ID and uploading for notarization"
+# With an API key, export the signed app and notarize it with notarytool; otherwise Xcode uploads it.
+DESTINATION=upload
+[[ ${#AUTH_ARGS[@]} -gt 0 ]] && DESTINATION=export
 mkdir -p build
 cat > build/ExportOptions.plist <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
@@ -48,7 +59,7 @@ cat > build/ExportOptions.plist <<EOF
   <key>method</key><string>developer-id</string>
   <key>teamID</key><string>$TEAM_ID</string>
   <key>signingStyle</key><string>automatic</string>
-  <key>destination</key><string>upload</string>
+  <key>destination</key><string>$DESTINATION</string>
 </dict>
 </plist>
 EOF
@@ -58,20 +69,36 @@ xcodebuild -exportArchive \
   -exportOptionsPlist build/ExportOptions.plist \
   -exportPath build/export \
   -allowProvisioningUpdates \
+  ${AUTH_ARGS[@]+"${AUTH_ARGS[@]}"} \
   -quiet
 
 echo "→ Waiting for Apple's notary service"
-for attempt in $(seq 1 80); do
+if [[ "$DESTINATION" == export ]]; then
   rm -rf "$NOTARIZED"
-  if xcodebuild -exportNotarizedApp -archivePath "$ARCHIVE" -exportPath "$NOTARIZED" >build/notarize.log 2>&1; then
-    break
-  fi
-  if [[ "$attempt" == 80 ]]; then
-    echo "Notarization did not finish in time; see build/notarize.log"
+  mkdir -p "$NOTARIZED"
+  ditto build/export/Snaps.app "$NOTARIZED/Snaps.app"
+  ditto -c -k --keepParent "$NOTARIZED/Snaps.app" build/notarize-upload.zip
+  if ! xcrun notarytool submit build/notarize-upload.zip \
+      --key "$ASC_KEY_PATH" --key-id "$ASC_KEY_ID" --issuer "$ASC_ISSUER_ID" \
+      --wait --timeout 30m >build/notarize.log 2>&1 \
+     || ! grep -q "status: Accepted" build/notarize.log; then
+    echo "Notarization failed; see build/notarize.log"
     exit 1
   fi
-  sleep 15
-done
+  xcrun stapler staple "$NOTARIZED/Snaps.app" >/dev/null
+else
+  for attempt in $(seq 1 80); do
+    rm -rf "$NOTARIZED"
+    if xcodebuild -exportNotarizedApp -archivePath "$ARCHIVE" -exportPath "$NOTARIZED" >build/notarize.log 2>&1; then
+      break
+    fi
+    if [[ "$attempt" == 80 ]]; then
+      echo "Notarization did not finish in time; see build/notarize.log"
+      exit 1
+    fi
+    sleep 15
+  done
+fi
 
 APP="$NOTARIZED/Snaps.app"
 echo "→ Verifying"

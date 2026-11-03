@@ -71,9 +71,21 @@ final class GalleryController {
 
     private func annotate(_ item: CaptureItem) {
         hide()
-        AnnotationEditor.shared.open(item.url, target: {
-            CaptureHistory.shared.items.first { $0.id == item.id }?.url
-        })
+        let target = { CaptureHistory.shared.items.first { $0.id == item.id }?.url }
+        if item.kind.isRecording {
+            if item.kind == .gif && item.source == nil {
+                NSWorkspace.shared.open(item.url)
+            } else {
+                VideoEditor.shared.open(
+                    item.url,
+                    source: item.source,
+                    pointSize: CGSize(width: item.width, height: item.height),
+                    target: target
+                )
+            }
+        } else {
+            AnnotationEditor.shared.open(item.url, target: target)
+        }
     }
 
     func hide() {
@@ -248,6 +260,11 @@ struct GalleryCard: View {
                     controls
                         .padding(7)
                         .transition(.opacity)
+                } else if item.kind.isRecording {
+                    RecordingBadge(kind: item.kind, duration: item.duration)
+                        .padding(7)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                        .allowsHitTesting(false)
                 }
                 if let toast = model.toast {
                     Label(toast, systemImage: "checkmark")
@@ -270,6 +287,9 @@ struct GalleryCard: View {
                 .padding(.leading, 2)
         }
         .task(id: item.url) { await model.load(item.url) }
+        .onReceive(VideoEditor.shared.didUpdate) { update in
+            if update.url == item.url { model.thumbnail = nil; Task { await model.load(item.url) } }
+        }
         .help("Click to copy · Drag to share · Double-click to open")
     }
 
@@ -307,7 +327,11 @@ struct GalleryCard: View {
                 Spacer()
                 GlassEffectContainer(spacing: 6) {
                     HStack(spacing: 6) {
-                        GlassIconButton(symbol: "pencil", help: "Annotate") { onAnnotate(item) }
+                        if item.kind == .image {
+                            GlassIconButton(symbol: "pencil", help: "Annotate") { onAnnotate(item) }
+                        } else if item.kind == .video || item.source != nil {
+                            GlassIconButton(symbol: "scissors", help: "Trim") { onAnnotate(item) }
+                        }
                         GlassIconButton(symbol: "doc.on.doc", help: "Copy", action: copy)
                         GlassIconButton(
                             symbol: CaptureStorage.isInCache(item.url) ? "square.and.arrow.down" : "folder",
@@ -321,8 +345,7 @@ struct GalleryCard: View {
     }
 
     private func copy() {
-        guard let image = NSImage(contentsOf: item.url) else { return }
-        Clipboard.copy(image: image, pngURL: item.url)
+        guard Clipboard.copy(contentsOf: item.url) else { return }
         model.showToast("Copied")
     }
 

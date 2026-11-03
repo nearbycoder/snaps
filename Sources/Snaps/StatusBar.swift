@@ -6,26 +6,89 @@ final class StatusBarController: NSObject {
     private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     private let popover = NSPopover()
     private var previousApp: NSRunningApplication?
+    private var recordingStatus: RecordingStatus = .idle
+    /// While recording, clicking the menu bar item stops it instead of opening the popover.
+    var onRecordingClick: (() -> Void)?
 
-    init(onCapture: @escaping (CaptureMode) -> Void, onGallery: @escaping () -> Void, onSettings: @escaping () -> Void) {
+    init(
+        onCapture: @escaping (CaptureMode) -> Void,
+        onRecord: @escaping (RecordingFormat) -> Void,
+        onGallery: @escaping () -> Void,
+        onSettings: @escaping () -> Void
+    ) {
         super.init()
 
         if let button = item.button {
-            let image = NSImage(systemSymbolName: "camera.viewfinder", accessibilityDescription: "Snaps")
-            image?.isTemplate = true
-            button.image = image
             button.target = self
             button.action = #selector(togglePopover)
+            button.imagePosition = .imageLeading
         }
+        showIdleIcon()
 
-        let hosting = NSHostingController(rootView: MenuView(onCapture: onCapture, onGallery: onGallery, onSettings: onSettings))
+        let hosting = NSHostingController(rootView: MenuView(
+            onCapture: onCapture,
+            onRecord: onRecord,
+            onGallery: onGallery,
+            onSettings: onSettings
+        ))
         hosting.sizingOptions = [.preferredContentSize]
         popover.contentViewController = hosting
         popover.behavior = .transient
         popover.animates = true
     }
 
+    /// Turns the menu bar item into a stop button with the recording time, and back.
+    func setRecordingStatus(_ status: RecordingStatus) {
+        guard status != recordingStatus else { return }
+        recordingStatus = status
+        guard let button = item.button else { return }
+        switch status {
+        case .idle:
+            showIdleIcon()
+        case .countdown, .finishing:
+            item.length = NSStatusItem.squareLength
+            button.title = ""
+            button.toolTip = status == .finishing ? "Saving the recording" : "Starting to record"
+            setSymbol(status == .finishing ? "hourglass" : "record.circle", tint: .systemRed)
+        case let .recording(clock, paused):
+            item.length = NSStatusItem.variableLength
+            closePopover(restoreFocus: false)
+            setSymbol(paused ? "pause.circle.fill" : "stop.circle.fill", tint: paused ? .systemOrange : .systemRed)
+            button.attributedTitle = NSAttributedString(string: " " + clock, attributes: [
+                .font: NSFont.monospacedDigitSystemFont(ofSize: 12.5, weight: .medium),
+                .baselineOffset: 0.5,
+            ])
+            button.toolTip = "Stop recording"
+        }
+    }
+
+    private func showIdleIcon() {
+        item.length = NSStatusItem.squareLength
+        item.button?.title = ""
+        item.button?.toolTip = "Snaps"
+        setSymbol("camera.viewfinder", tint: nil)
+    }
+
+    private var currentSymbol: String?
+
+    private func setSymbol(_ name: String, tint: NSColor?) {
+        guard let button = item.button, name != currentSymbol else { return }
+        currentSymbol = name
+        var image = NSImage(systemSymbolName: name, accessibilityDescription: "Snaps")
+        if let tint {
+            image = image?.withSymbolConfiguration(.init(paletteColors: [tint]))
+            image?.isTemplate = false
+        } else {
+            image?.isTemplate = true
+        }
+        button.image = image
+    }
+
     @objc private func togglePopover() {
+        if recordingStatus != .idle {
+            onRecordingClick?()
+            return
+        }
         if popover.isShown {
             popover.performClose(nil)
             return
@@ -39,6 +102,11 @@ final class StatusBarController: NSObject {
         NSApp.activate()
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
+    }
+
+    /// The app that was frontmost before the popover opened, while it's open.
+    var appBeforePopover: NSRunningApplication? {
+        popover.isShown ? previousApp : nil
     }
 
     /// Closes the popover; optionally hands focus back to the previous app so ⌘V lands there.
@@ -58,6 +126,7 @@ struct MenuView: View {
     @ObservedObject private var settings = AppSettings.shared
     @ObservedObject private var state = AppState.shared
     let onCapture: (CaptureMode) -> Void
+    let onRecord: (RecordingFormat) -> Void
     let onGallery: () -> Void
     let onSettings: () -> Void
 
@@ -77,6 +146,16 @@ struct MenuView: View {
                     ForEach(CaptureMode.allCases) { mode in
                         CaptureTile(mode: mode, shortcut: settings.shortcuts[ShortcutAction(mode)]) {
                             onCapture(mode)
+                        }
+                    }
+                }
+            }
+
+            GlassEffectContainer(spacing: 8) {
+                HStack(spacing: 8) {
+                    ForEach(RecordingFormat.allCases) { format in
+                        RecordTile(format: format, shortcut: settings.shortcuts[ShortcutAction(format)]) {
+                            onRecord(format)
                         }
                     }
                 }
@@ -162,6 +241,39 @@ struct CaptureTile: View {
         .buttonStyle(.plain)
         .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 16))
         .help(mode.detail)
+    }
+}
+
+struct RecordTile: View {
+    let format: RecordingFormat
+    let shortcut: Shortcut?
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: format.symbol)
+                    .font(.system(size: 17))
+                    .foregroundStyle(.red)
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(format.title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                    Text(shortcut?.displayString ?? "—")
+                        .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+            .contentShape(.rect(cornerRadius: 14))
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 14))
+        .help(format.detail)
     }
 }
 

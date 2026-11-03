@@ -18,13 +18,21 @@ final class PreviewManager {
 
     /// Called with a preview's file once the preview is gone.
     var onRelease: ((URL) -> Void)?
+    /// Files opened in or dropped onto another app, which may still be reading them.
+    private var handedOut: Set<URL> = []
+    /// Shown while previews were hidden (mid-capture); they appear when previews come back.
+    private var pending: [PreviewController] = []
 
     @discardableResult
-    func show(image: NSImage, fileURL: URL) -> PreviewController {
+    func show(image: NSImage, fileURL: URL, recording: RecordingInfo? = nil) -> PreviewController {
         screen = NSScreen.underMouse
         follower.start(on: screen)
 
-        let controller = PreviewController(image: image, fileURL: fileURL)
+        let controller = PreviewController(image: image, fileURL: fileURL, recording: recording)
+        controller.onHandOut = { [weak self, weak controller] in
+            guard let self, let controller else { return }
+            self.handedOut.insert(controller.model.fileURL)
+        }
         controller.onDismiss = { [weak self, weak controller] in
             guard let self, let controller else { return }
             self.items.removeAll { $0 === controller }
@@ -44,13 +52,24 @@ final class PreviewManager {
         return controller
     }
 
+    func wasHandedOut(_ url: URL) -> Bool {
+        handedOut.contains(url)
+    }
+
     func isShowing(_ url: URL) -> Bool {
         items.contains { $0.model.fileURL == url }
     }
 
     func setHidden(_ hidden: Bool) {
         isHidden = hidden
-        items.forEach { $0.setHidden(hidden) }
+        let fresh = hidden ? [] : pending
+        if !hidden { pending = [] }
+        for item in items where !fresh.contains(where: { $0 === item }) {
+            item.setHidden(hidden)
+        }
+        for item in fresh where items.contains(where: { $0 === item }) {
+            layout(animated: false, presenting: item)
+        }
     }
 
     private func follow(to newScreen: NSScreen) {
@@ -76,7 +95,13 @@ final class PreviewManager {
             offset += size.height + spacing
 
             if controller === newcomer {
-                controller.present(at: frame, fromLeft: corner.isLeft)
+                if isHidden {
+                    // Don't slide into a screenshot that's being taken.
+                    controller.move(to: frame, animated: false)
+                    pending.append(controller)
+                } else {
+                    controller.present(at: frame, fromLeft: corner.isLeft)
+                }
             } else if transferring && !isHidden {
                 controller.transfer(to: frame, fromLeft: corner.isLeft)
             } else {
@@ -93,13 +118,20 @@ final class PreviewModel: ObservableObject {
     @Published var isHovering = false
     @Published var isPinned = false
     @Published var toast: String?
+    @Published var recording: RecordingInfo?
+    /// Bumped when the file's contents change in place, so an animated GIF reloads.
+    @Published var revision = 0
 
-    init(image: NSImage, fileURL: URL) {
+    init(image: NSImage, fileURL: URL, recording: RecordingInfo?) {
         self.image = image
         self.fileURL = fileURL
+        self.recording = recording
     }
 
     var isSaved: Bool { !CaptureStorage.isInCache(fileURL) }
+    var kind: CaptureKind { CaptureKind(fileURL) }
+    /// Screenshots open in the annotation editor, recordings in the video editor; a GIF needs its source video.
+    var canEdit: Bool { kind != .gif || recording?.source != nil }
 }
 
 @MainActor
@@ -110,6 +142,8 @@ final class PreviewController {
     let model: PreviewModel
     let size: NSSize
     var onDismiss: (() -> Void)?
+    /// Called when the file is opened in or dropped onto another app.
+    var onHandOut: (() -> Void)?
 
     private let panel: GlassPanel
     private var timer: Timer?
@@ -120,9 +154,9 @@ final class PreviewController {
     private var toastTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
 
-    init(image: NSImage, fileURL: URL) {
-        model = PreviewModel(image: image, fileURL: fileURL)
-        let layout = Self.layout(for: image.size)
+    init(image: NSImage, fileURL: URL, recording: RecordingInfo? = nil) {
+        model = PreviewModel(image: image, fileURL: fileURL, recording: recording)
+        let layout = Self.layout(for: recording?.pointSize ?? image.size)
         size = layout.card
         panel = GlassPanel(contentSize: layout.card)
 
@@ -155,6 +189,15 @@ final class PreviewController {
             .sink { [weak self] update in
                 guard let self, update.url == self.model.fileURL else { return }
                 self.model.image = update.image
+            }
+            .store(in: &cancellables)
+
+        VideoEditor.shared.didUpdate
+            .sink { [weak self] update in
+                guard let self, update.url == self.model.fileURL else { return }
+                self.model.image = update.poster
+                self.model.recording?.duration = update.duration
+                self.model.revision += 1
             }
             .store(in: &cancellables)
     }
@@ -263,7 +306,11 @@ final class PreviewController {
     }
 
     private func copyAgain() {
-        Clipboard.copy(image: model.image, pngURL: model.fileURL)
+        if model.kind.isRecording {
+            Clipboard.copy(fileAt: model.fileURL)
+        } else {
+            Clipboard.copy(image: model.image, pngURL: model.fileURL)
+        }
         showToast("Copied")
     }
 
@@ -283,22 +330,36 @@ final class PreviewController {
     }
 
     private func open() {
+        onHandOut?()
         NSWorkspace.shared.open(model.fileURL)
         dismiss()
     }
 
     /// Opens the capture in the editor. The preview stays put meanwhile and shows the result when it closes.
     func annotate() {
-        let opened = AnnotationEditor.shared.open(
-            model.fileURL,
-            target: { [weak model] in model?.fileURL },
-            onClose: { [weak self] copied in
-                guard let self else { return }
-                self.isEditing = false
-                if copied { self.showToast("Copied") }
-                self.scheduleTimer()
-            }
-        )
+        guard model.canEdit else { return }
+        let onClose: (Bool) -> Void = { [weak self] copied in
+            guard let self else { return }
+            self.isEditing = false
+            if copied { self.showToast("Copied") }
+            self.scheduleTimer()
+        }
+        let opened: Bool
+        if let recording = model.recording, model.kind.isRecording {
+            opened = VideoEditor.shared.open(
+                model.fileURL,
+                source: recording.source,
+                pointSize: recording.pointSize,
+                target: { [weak model] in model?.fileURL },
+                onClose: onClose
+            )
+        } else {
+            opened = AnnotationEditor.shared.open(
+                model.fileURL,
+                target: { [weak model] in model?.fileURL },
+                onClose: onClose
+            )
+        }
         if opened {
             isEditing = true
             cancelTimer()
@@ -316,6 +377,8 @@ final class PreviewController {
     private func dragEnded(dropped: Bool) {
         isDragging = false
         if dropped {
+            // A drop can be a link or a path, not just a copy, so the file has to outlive the preview.
+            onHandOut?()
             dismiss()
         } else {
             panel.animator().alphaValue = 1

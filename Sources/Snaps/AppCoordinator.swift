@@ -8,6 +8,7 @@ final class AppCoordinator {
     private let previews = PreviewManager()
     private let gallery = GalleryController()
     private let settingsWindow = SettingsWindowController()
+    private lazy var recording = RecordingController(previews: previews)
     private var statusBar: StatusBarController?
     private var cancellables = Set<AnyCancellable>()
     private var isCapturing = false
@@ -18,9 +19,16 @@ final class AppCoordinator {
 
         statusBar = StatusBarController(
             onCapture: { [weak self] mode in self?.capture(mode) },
+            onRecord: { [weak self] format in self?.record(format) },
             onGallery: { [weak self] in self?.toggleGallery() },
             onSettings: { [weak self] in self?.showSettings() }
         )
+        statusBar?.onRecordingClick = { [weak self] in self?.recording.toggle(.video) }
+        recording.onStatusChange = { [weak self] status in self?.statusBar?.setRecordingStatus(status) }
+        VideoEditor.shared.onNewRecording = { [weak self] url, poster, info in
+            guard let self, self.settings.showPreview else { return }
+            self.previews.show(image: poster, fileURL: url, recording: info)
+        }
 
         Publishers.CombineLatest(settings.$shortcuts, state.$isRecordingShortcut)
             .sink { [weak self] shortcuts, isRecording in
@@ -62,13 +70,33 @@ final class AppCoordinator {
     }
 
     func toggleGallery() {
+        // Not over the screenshot picker, where an area drag could catch it.
+        guard !isCapturing else { return }
         statusBar?.closePopover(restoreFocus: true)
         gallery.toggle()
     }
 
-    func capture(_ mode: CaptureMode) {
+    /// Starts recording, or stops the recording in progress.
+    func record(_ format: RecordingFormat) {
+        // The screenshot picker is up; two pickers at once fight over the cursor and Esc.
         guard !isCapturing else { return }
+        // The picker takes focus itself and hands it back afterwards; activating the old app now would race it.
+        let returnTo = statusBar?.appBeforePopover
+        statusBar?.closePopover(restoreFocus: false)
+        gallery.hide()
+        recording.toggle(format, returnTo: returnTo)
+    }
+
+    func capture(_ mode: CaptureMode) {
+        // Screenshots are fine mid-recording, but not over the picker or the countdown.
+        guard !isCapturing, recording.phase == .idle || recording.phase == .recording else { return }
+        guard ScreenPermission.isGranted else {
+            // The picker would cover the system's permission prompt.
+            PermissionGuide.shared.start()
+            return
+        }
         isCapturing = true
+        let galleryWasOpen = gallery.isVisible
         let hadPopover = statusBar?.closePopover(restoreFocus: true) ?? false
         gallery.hide()
 
@@ -90,7 +118,10 @@ final class AppCoordinator {
                     try? await Task.sleep(for: .milliseconds(80))
                 }
             case .screen:
-                if !hadPopover {
+                if galleryWasOpen {
+                    // The gallery takes 0.2 s to fade out.
+                    try? await Task.sleep(for: .milliseconds(240))
+                } else if !hadPopover {
                     // Same for hidden previews.
                     try? await Task.sleep(for: .milliseconds(80))
                 }
@@ -141,10 +172,14 @@ final class AppCoordinator {
     /// preview or editor shows it, it's deleted, after a grace period in case an app is still reading a
     /// copy that was dragged out of the preview.
     private func discardWhenUnused(_ url: URL) {
+        // Recordings go on the clipboard as files, so deleting one would break pasting it.
+        // Unsaved ones are left to the weekly cache cleanup instead.
+        guard !CaptureKind(url).isRecording else { return }
         func isUnused() -> Bool {
             CaptureStorage.isInCache(url)
                 && !CaptureHistory.shared.contains(url)
                 && !previews.isShowing(url)
+                && !previews.wasHandedOut(url)
                 && !AnnotationEditor.shared.isOpen(url)
         }
         guard isUnused() else { return }
@@ -159,6 +194,8 @@ final class AppCoordinator {
     private func perform(_ action: ShortcutAction) {
         if let mode = action.captureMode {
             capture(mode)
+        } else if let format = action.recordingFormat {
+            record(format)
         } else {
             toggleGallery()
         }
@@ -166,7 +203,8 @@ final class AppCoordinator {
 
     private func registerHotKeys(_ shortcuts: [ShortcutAction: Shortcut], suspended: Bool) {
         let center = HotKeyCenter.shared
-        center.unregisterAll()
+        // Only the shortcuts: the screenshot picker's temporary Esc hot key must survive this.
+        for action in ShortcutAction.allCases { center.unregister(id: action.hotKeyID) }
         // While recording a new shortcut, keep existing ones from firing.
         guard !suspended else { return }
 
