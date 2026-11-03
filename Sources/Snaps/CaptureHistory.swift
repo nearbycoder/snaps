@@ -63,7 +63,8 @@ final class CaptureHistory: ObservableObject {
         pruneMissing()
     }
 
-    func add(url: URL, size: NSSize, duration: Double? = nil, source: URL? = nil) {
+    @discardableResult
+    func add(url: URL, size: NSSize, duration: Double? = nil, source: URL? = nil) -> CaptureItem {
         let item = CaptureItem(
             id: UUID(), url: url, date: Date(),
             width: size.width, height: size.height,
@@ -74,6 +75,11 @@ final class CaptureHistory: ObservableObject {
             items.removeLast(items.count - limit)
         }
         save()
+        return item
+    }
+
+    func contains(_ url: URL) -> Bool {
+        items.contains { $0.url == url }
     }
 
     /// Keeps the history pointing at a capture after it's been saved somewhere else.

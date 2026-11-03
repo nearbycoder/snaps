@@ -16,17 +16,29 @@ final class PreviewManager {
         self?.follow(to: screen)
     }
 
+    /// Called with a preview's file once the preview is gone.
+    var onRelease: ((URL) -> Void)?
+    /// Files opened in or dropped onto another app, which may still be reading them.
+    private var handedOut: Set<URL> = []
+    /// Shown while previews were hidden (mid-capture); they appear when previews come back.
+    private var pending: [PreviewController] = []
+
     @discardableResult
     func show(image: NSImage, fileURL: URL, recording: RecordingInfo? = nil) -> PreviewController {
         screen = NSScreen.underMouse
         follower.start(on: screen)
 
         let controller = PreviewController(image: image, fileURL: fileURL, recording: recording)
+        controller.onHandOut = { [weak self, weak controller] in
+            guard let self, let controller else { return }
+            self.handedOut.insert(controller.model.fileURL)
+        }
         controller.onDismiss = { [weak self, weak controller] in
             guard let self, let controller else { return }
             self.items.removeAll { $0 === controller }
             if self.items.isEmpty { self.follower.stop() }
             self.layout(animated: true)
+            self.onRelease?(controller.model.fileURL)
         }
         items.append(controller)
 
@@ -34,14 +46,30 @@ final class PreviewManager {
             let oldest = items.removeFirst()
             oldest.onDismiss = nil
             oldest.dismiss()
+            onRelease?(oldest.model.fileURL)
         }
         layout(animated: true, presenting: controller)
         return controller
     }
 
+    func wasHandedOut(_ url: URL) -> Bool {
+        handedOut.contains(url)
+    }
+
+    func isShowing(_ url: URL) -> Bool {
+        items.contains { $0.model.fileURL == url }
+    }
+
     func setHidden(_ hidden: Bool) {
         isHidden = hidden
-        items.forEach { $0.setHidden(hidden) }
+        let fresh = hidden ? [] : pending
+        if !hidden { pending = [] }
+        for item in items where !fresh.contains(where: { $0 === item }) {
+            item.setHidden(hidden)
+        }
+        for item in fresh where items.contains(where: { $0 === item }) {
+            layout(animated: false, presenting: item)
+        }
     }
 
     private func follow(to newScreen: NSScreen) {
@@ -67,7 +95,13 @@ final class PreviewManager {
             offset += size.height + spacing
 
             if controller === newcomer {
-                controller.present(at: frame, fromLeft: corner.isLeft)
+                if isHidden {
+                    // Don't slide into a screenshot that's being taken.
+                    controller.move(to: frame, animated: false)
+                    pending.append(controller)
+                } else {
+                    controller.present(at: frame, fromLeft: corner.isLeft)
+                }
             } else if transferring && !isHidden {
                 controller.transfer(to: frame, fromLeft: corner.isLeft)
             } else {
@@ -108,6 +142,8 @@ final class PreviewController {
     let model: PreviewModel
     let size: NSSize
     var onDismiss: (() -> Void)?
+    /// Called when the file is opened in or dropped onto another app.
+    var onHandOut: (() -> Void)?
 
     private let panel: GlassPanel
     private var timer: Timer?
@@ -294,6 +330,7 @@ final class PreviewController {
     }
 
     private func open() {
+        onHandOut?()
         NSWorkspace.shared.open(model.fileURL)
         dismiss()
     }
@@ -340,6 +377,8 @@ final class PreviewController {
     private func dragEnded(dropped: Bool) {
         isDragging = false
         if dropped {
+            // A drop can be a link or a path, not just a copy, so the file has to outlive the preview.
+            onHandOut?()
             dismiss()
         } else {
             panel.animator().alphaValue = 1

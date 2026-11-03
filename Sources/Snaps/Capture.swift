@@ -1,41 +1,43 @@
 import AppKit
 
-/// Wraps the system `screencapture` tool, which provides the native area/window selection UI.
+/// What to capture, as picked on the overlay or implied by the mode.
+enum CaptureTarget {
+    /// A region in AppKit global coordinates (bottom-left origin), in points.
+    case area(CGRect)
+    /// One window on its own: transparent outside its shape, with or without its shadow.
+    case window(CGWindowID)
+}
+
+/// Wraps the system `screencapture` tool. Snaps draws its own picker; this only takes the shot.
 @MainActor
 enum ScreenCapturer {
-    static func capture(_ mode: CaptureMode, settings: AppSettings) async -> URL? {
+    static func capture(_ target: CaptureTarget, settings: AppSettings) async -> URL? {
         let url = CaptureStorage.newCaptureURL()
 
         var arguments: [String] = []
         if !settings.playSound { arguments.append("-x") }
-        if !settings.includeWindowShadow { arguments.append("-o") }
 
-        switch mode {
-        case .area:
-            arguments += ["-i", "-s"]
-        case .window:
-            arguments += ["-i", "-w"]
-        case .screen:
-            if let rect = screenRectUnderMouse() {
-                arguments += ["-R", rect]
-            }
+        switch target {
+        case .area(let rect):
+            arguments += ["-R", quartzRect(rect)]
+        case .window(let id):
+            if !settings.includeWindowShadow { arguments.append("-o") }
+            arguments += ["-l", String(id)]
         }
         arguments.append(url.path)
 
         await run("/usr/sbin/screencapture", arguments)
 
-        // No file means the user cancelled (e.g. pressed Escape).
+        // No file means the capture failed (e.g. the window closed meanwhile).
         guard FileManager.default.fileExists(atPath: url.path) else { return nil }
         return url
     }
 
-    /// The frame of the display under the cursor, in the top-left-origin global coordinates `screencapture -R` expects.
-    private static func screenRectUnderMouse() -> String? {
-        guard let screen = NSScreen.underMouse,
-              let primary = NSScreen.screens.first else { return nil }
-        let frame = screen.frame
-        let top = primary.frame.maxY - frame.maxY
-        return "\(Int(frame.minX)),\(Int(top)),\(Int(frame.width)),\(Int(frame.height))"
+    /// `rect` in the top-left-origin global coordinates `screencapture -R` expects.
+    private static func quartzRect(_ rect: CGRect) -> String {
+        let rect = rect.integral
+        let top = (NSScreen.screens.first?.frame.maxY ?? rect.maxY) - rect.maxY
+        return "\(Int(rect.minX)),\(Int(top)),\(Int(rect.width)),\(Int(rect.height))"
     }
 
     private static func run(_ path: String, _ arguments: [String]) async {

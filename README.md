@@ -30,7 +30,7 @@ Requires macOS 26 or later. Releases are signed with a Developer ID and notarize
 
 | Capture | Default | What it does |
 | --- | --- | --- |
-| Area | ⌃⇧4 | Drag to select a region |
+| Area | ⌃⇧4 | Drag to select a region, or click a window to capture all of it |
 | Window | ⌃⇧5 | Click a window to capture it |
 | Full Screen | ⌃⇧3 | Captures the display under your cursor |
 | Record Video | ⌃⇧6 | Records an area, a window or a screen as MP4. Press again to stop |
@@ -38,6 +38,8 @@ Requires macOS 26 or later. Releases are signed with a Developer ID and notarize
 | Gallery | ⌃⇧G | Shows recent captures in a strip across the top of the screen |
 
 Change them in **Settings → Shortcuts**: click a shortcut and type a new combo. Esc cancels, Delete clears it.
+
+While you pick an area or a window, the pointer becomes a crosshair across the display with a loupe beside it: the pixels under the cursor magnified, their position (or the selection's size) and their color. The window under the cursor gets a thin outline, and a click captures that window on its own: transparent around it, cut to its rounded corners, with its shadow unless **Include window shadow** is off. Dragging selects an area instead. Esc or a right click cancels. The app you're capturing stays active the whole time, so its window looks the way you see it. The picker was contributed by [@lafraia](https://github.com/lafraia) in [#2](https://github.com/nearbycoder/snaps/pull/2).
 
 ## The preview
 
@@ -47,6 +49,7 @@ Change them in **Settings → Shortcuts**: click a shortcut and type a new combo
 - **Hover** to reveal buttons for close, pin (keeps it on screen), annotate, copy again, save / show in Finder, and open.
 - **Double-click** to open it in the editor.
 - Auto-dismisses after 5, 10 or 20 seconds, or stays until you close it.
+- Don't need it? Turn it off with the switch in **Settings → General → Preview**. Captures and recordings still go to your clipboard, or a screenshot straight to the editor.
 
 ## The gallery
 
@@ -59,9 +62,11 @@ Press ⌃⇧G, or click **Gallery** in the menu bar popover. A glass strip drops
 
 The gallery keeps your last 60 captures. Unsaved captures are cleaned up after 7 days; anything saved to a folder stays in the gallery as long as the file exists.
 
+Taking lots of throwaway shots? Turn off **Settings → General → Keep in the gallery**. New captures then skip the gallery, and a screenshot that isn't saved to a folder is deleted shortly after its preview and editor close. Recordings are copied as files, so unsaved ones stay in the cache until the weekly cleanup, so pasting them keeps working.
+
 ## Annotating
 
-Double-click a preview or a gallery card, or click its pencil, to open the capture in the editor. It starts with the arrow selected. To open every capture there automatically, turn on **Settings → After Capture → Open in the editor**.
+Double-click a preview or a gallery card, or click its pencil, to open the capture in the editor. It starts with the arrow selected. To open every capture there automatically, turn on **Settings → General → Open in the editor**. The editor was contributed by [@lafraia](https://github.com/lafraia) in [#1](https://github.com/nearbycoder/snaps/pull/1).
 
 | Tool | Key | How |
 | --- | --- | --- |
@@ -72,7 +77,7 @@ Double-click a preview or a gallery card, or click its pencil, to open the captu
 
 - Pick a color and a size before drawing, or select an annotation and change them. Blur ignores both.
 - Drag the handles of a selected arrow or blur to reshape it. Arrow keys nudge the selection (Shift for 10 points).
-- **⌘Z** / **⇧⌘Z** undo and redo. **⌘C** or **Copy** puts the annotated image on the clipboard.
+- **⌘Z** / **⇧⌘Z** undo and redo. **⌘C** (or **⌃C**) or **Copy** puts the annotated image on the clipboard.
 - **Done** (⌘↩) writes the annotations into the capture, so the preview, the gallery and drag and drop all get the annotated version, and copies it if **Copy to clipboard** is on.
 - Closing the window without Done keeps your annotations as a draft. Until you quit Snaps, reopening a capture brings its annotations back, still editable.
 
@@ -145,6 +150,7 @@ Sources/Snaps/
   SnapsMain.swift        app entry point (menu bar / accessory app)
   AppCoordinator.swift   wires hotkeys → capture → clipboard → preview
   AppSettings.swift      persisted preferences + runtime state
+  CaptureOverlay.swift   area and window picker (crosshair, loupe, window outline) over every display
   Capture.swift          screencapture wrapper, file storage, clipboard
   RecordingPicker.swift  area / window / screen picker overlay for recordings
   RecordingController.swift  runs a recording: countdown, controls, menu bar timer, delivery

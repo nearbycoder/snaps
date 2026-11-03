@@ -23,6 +23,8 @@ final class AnnotationEditor {
 
     /// Fires whenever annotations are written back into a capture file.
     let didUpdate = PassthroughSubject<Update, Never>()
+    /// Fires with the URL a window was opened with, once it has closed.
+    let didClose = PassthroughSubject<URL, Never>()
 
     private var windows: [EditorWindowController] = []
     private var sessions: [URL: EditorSession] = [:]
@@ -50,10 +52,21 @@ final class AnnotationEditor {
             self.windows.removeAll { $0 === controller }
             self.remember(session, for: finalURL)
             onClose?(copied)
+            self.didClose.send(url)
         }
         windows.append(controller)
         controller.show()
         return true
+    }
+
+    func isOpen(_ url: URL) -> Bool {
+        windows.contains { $0.url == url }
+    }
+
+    /// Drops the draft kept for `url`, for a capture that's being thrown away.
+    func forget(_ url: URL) {
+        sessions[url] = nil
+        sessionOrder.removeAll { $0 == url }
     }
 
     private func remember(_ session: EditorSession, for url: URL) {

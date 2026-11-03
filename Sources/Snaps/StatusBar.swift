@@ -110,12 +110,15 @@ final class StatusBarController: NSObject {
     }
 
     /// Closes the popover; optionally hands focus back to the previous app so ⌘V lands there.
-    func closePopover(restoreFocus: Bool) {
-        guard popover.isShown else { return }
+    /// Returns whether it was open.
+    @discardableResult
+    func closePopover(restoreFocus: Bool) -> Bool {
+        guard popover.isShown else { return false }
         popover.close()
         if restoreFocus {
             previousApp?.activate()
         }
+        return true
     }
 }
 
@@ -186,13 +189,15 @@ struct MenuView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Preview corner")
                         .font(.system(size: 12, weight: .medium))
-                    Text(settings.corner.title)
+                    Text(settings.showPreview ? settings.corner.title : "Previews are off")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
                 CornerPicker(selection: $settings.corner)
                     .frame(width: 68, height: 44)
+                    .disabled(!settings.showPreview)
+                    .opacity(settings.showPreview ? 1 : 0.4)
             }
             .padding(12)
             .glassEffect(.regular, in: .rect(cornerRadius: 16))

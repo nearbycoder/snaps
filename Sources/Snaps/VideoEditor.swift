@@ -352,7 +352,9 @@ final class VideoEditorWindowController: NSObject, NSWindowDelegate {
             if settings.copyToClipboard {
                 Clipboard.copy(fileAt: url)
             }
-            CaptureHistory.shared.add(url: url, size: pointSize, duration: duration, source: source)
+            if settings.keepInGallery {
+                CaptureHistory.shared.add(url: url, size: pointSize, duration: duration, source: source)
+            }
             VideoEditor.shared.onNewRecording?(
                 url,
                 poster ?? NSImage(size: pointSize),

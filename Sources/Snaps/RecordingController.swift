@@ -214,9 +214,13 @@ final class RecordingController {
         if settings.copyToClipboard {
             Clipboard.copy(fileAt: url)
         }
-        CaptureHistory.shared.add(url: url, size: pointSize, duration: duration, source: source)
-        let image = poster ?? NSImage(size: pointSize)
-        previews.show(image: image, fileURL: url, recording: RecordingInfo(duration: duration, source: source, pointSize: pointSize))
+        if settings.keepInGallery {
+            CaptureHistory.shared.add(url: url, size: pointSize, duration: duration, source: source)
+        }
+        if settings.showPreview {
+            let image = poster ?? NSImage(size: pointSize)
+            previews.show(image: image, fileURL: url, recording: RecordingInfo(duration: duration, source: source, pointSize: pointSize))
+        }
     }
 
     // MARK: Chrome

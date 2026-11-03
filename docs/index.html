@@ -203,6 +203,8 @@
     .credit { margin-top: 22px; font-size: 14px; color: var(--faint); }
     .credit a { color: var(--cyan); }
     .credit a:hover { text-decoration: underline; }
+    .card p a { color: var(--cyan); }
+    .card p a:hover { text-decoration: underline; }
 
     /* Shortcuts */
     .shortcuts { border-radius: var(--radius); padding: 10px; max-width: 760px; margin: 0 auto; }
@@ -390,7 +392,7 @@
       <div class="card glass span-4 reveal">
         <div class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a5f3fc" stroke-width="2.2" stroke-linecap="round"><path d="M3 8V5.5A2.5 2.5 0 0 1 5.5 3H8M16 3h2.5A2.5 2.5 0 0 1 21 5.5V8M3 16v2.5A2.5 2.5 0 0 0 5.5 21H8M16 21h2.5a2.5 2.5 0 0 0 2.5-2.5V16"/></svg></div>
         <h3>Three ways to capture</h3>
-        <p>Uses the native macOS selection UI, so it's fast, precise and familiar.</p>
+        <p>A crosshair with a pixel loupe for areas, and a thin outline on the window under your pointer. Click to grab that window on its own, cut to its rounded corners. The picker was contributed by <a href="https://github.com/lafraia">@lafraia</a> in <a href="https://github.com/nearbycoder/snaps/pull/2">#2</a>.</p>
         <div class="modes">
           <div class="mode"><svg width="30" height="26" viewBox="0 0 28 24" fill="none" stroke="white" stroke-width="2" stroke-dasharray="4 3"><rect x="2" y="2" width="24" height="20" rx="4"/></svg>Area<small>⌃⇧4</small></div>
           <div class="mode"><svg width="30" height="26" viewBox="0 0 28 24" fill="none" stroke="white" stroke-width="2"><rect x="2" y="2" width="24" height="20" rx="4"/><path d="M2 8h24"/></svg>Window<small>⌃⇧5</small></div>
@@ -448,8 +450,8 @@
       <p>Sensible defaults that don't clash with the built-in macOS screenshot keys. Change any of them in Settings.</p>
     </div>
     <div class="shortcuts glass reveal">
-      <div class="sc-row"><div class="what"><b>Area</b><span>Drag to select any region</span></div><div class="keys"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>4</kbd></div></div>
-      <div class="sc-row"><div class="what"><b>Window</b><span>Click any window to capture it</span></div><div class="keys"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>5</kbd></div></div>
+      <div class="sc-row"><div class="what"><b>Area</b><span>Drag a region, or click a window</span></div><div class="keys"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>4</kbd></div></div>
+      <div class="sc-row"><div class="what"><b>Window</b><span>Hover a window, then click to capture it</span></div><div class="keys"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>5</kbd></div></div>
       <div class="sc-row"><div class="what"><b>Full Screen</b><span>The display under your cursor</span></div><div class="keys"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>3</kbd></div></div>
       <div class="sc-row"><div class="what"><b>Record Video</b><span>An area, a window or a screen as MP4. Press again to stop</span></div><div class="keys"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>6</kbd></div></div>
       <div class="sc-row"><div class="what"><b>Record GIF</b><span>The same, as a looping GIF</span></div><div class="keys"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>7</kbd></div></div>
@@ -496,6 +498,8 @@
         <p>Yes. Press <b>⌃⇧6</b> for a video or <b>⌃⇧7</b> for a GIF, or use the menu bar. Drag out an area, click a screen, or press Space for a window, then press Return. Press the shortcut again, click the menu bar timer, or use the stop button to finish. Videos can include your microphone and computer audio; turn them on in the bar under the selection or in Settings → Recording.</p></details>
       <details class="glass reveal"><summary>Can I trim a recording?</summary>
         <p>Yes. Double-click the preview or the gallery card, or click its scissors, to trim the start and end. You can also drop the sound, or save a video as a GIF (and a GIF as a video). Done saves the change and copies it.</p></details>
+      <details class="glass reveal"><summary>I take lots of throwaway shots. Can Snaps stay out of the way?</summary>
+        <p>Yes. In Settings, switch off the preview and <b>Keep in the gallery</b>, and turn on <b>Open in the editor</b>. A capture then goes straight to the editor, you copy it and close it, and it's gone, with nothing left in the gallery.</p></details>
       <details class="glass reveal"><summary>Can I change the shortcuts or where previews appear?</summary>
         <p>Yes. Open Settings from the menu bar icon to record new shortcuts, pick a preview corner, set how long previews stay, and toggle the capture sound, window shadows and launch at login. The Recording tab sets the frame rate, click highlights, the countdown, sound, and GIF size.</p></details>
     </div>
