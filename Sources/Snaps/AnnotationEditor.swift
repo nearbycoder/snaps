@@ -136,6 +136,9 @@ final class EditorWindowController: NSObject, NSWindowDelegate {
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
         window.tabbingMode = .disallowed
+        // Snaps is usually in the background when a capture opens here, and macOS would put a background
+        // app's new window on the Space where that app was last active, out of sight.
+        window.collectionBehavior = [.moveToActiveSpace]
         window.minSize = NSSize(width: 820, height: 480)
         window.delegate = self
         window.setFrame(initialFrame(), display: false)
@@ -157,10 +160,12 @@ final class EditorWindowController: NSObject, NSWindowDelegate {
         Task { await model.prepareBlur() }
     }
 
+    /// Brings the editor forward with the keyboard, so ⌘C works right away. The editor only ever opens
+    /// because the user asked (a capture with Open in the editor on, a double click), but the capture
+    /// picker never activates Snaps, so macOS turns down the cooperative `activate()` at this point.
     func focus() {
-        NSApp.activate()
+        NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
-        // After a hotkey capture macOS may not let Snaps activate; show the window on top anyway.
         window?.orderFrontRegardless()
     }
 
