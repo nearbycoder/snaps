@@ -303,6 +303,37 @@
   .preview .ptoast { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 7px 13px; border-radius: 999px; font: 700 13px var(--font);
     color: #141827; background: rgba(255,255,255,0.8); border: 1px solid rgba(255,255,255,0.9); opacity: 0; white-space: nowrap; }
 
+  /* ---------- Recording scene ---------- */
+  #rSel { border: 1.5px solid rgba(255,255,255,0.95); box-shadow: 0 0 0 4000px rgba(0,0,0,0.36); opacity: 0; }
+  #rSel i { position: absolute; width: 11px; height: 11px; margin: -5.5px; border-radius: 50%; background: white; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
+  .rhair { background: rgba(255,255,255,0.45); opacity: 0; }
+  #rSize { padding: 5px 11px; border-radius: 999px; background: rgba(0,0,0,0.72); color: white; font: 700 14px var(--font); font-variant-numeric: tabular-nums; opacity: 0; white-space: nowrap; }
+  #rBar { display: flex; align-items: center; gap: 10px; padding: 7px; border-radius: 999px; opacity: 0; white-space: nowrap; transform-origin: 50% 0; }
+  #rBar .dim { color: rgba(255,255,255,0.8); font: 700 15px var(--font); font-variant-numeric: tabular-nums; padding: 0 6px 0 10px; }
+  .rseg { display: flex; gap: 3px; }
+  .rseg b { padding: 9px 16px; border-radius: 999px; font: 700 15px var(--font); color: white; background: rgba(255,255,255,0.12); }
+  .rseg b.on { background: #0a84ff; }
+  .rbtn { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; color: white; background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.28); }
+  .rbtn.on { background: #0a84ff; border-color: #0a84ff; }
+  #rRec { display: flex; align-items: center; gap: 8px; height: 42px; padding: 0 20px; border-radius: 999px; background: #ff3b30; color: white; font: 700 16px var(--font); box-shadow: inset 0 1px 0 rgba(255,255,255,.35); }
+  #rRec i { width: 13px; height: 13px; border-radius: 50%; border: 2.5px solid white; display: block; }
+  #rCount { width: 190px; height: 190px; border-radius: 50%; display: grid; place-items: center; color: white; font: 800 96px var(--rounded); opacity: 0; }
+  #rOutline { border: 2px dashed rgba(255,255,255,0.95); outline: 3px solid rgba(0,0,0,0.2); opacity: 0; }
+  #rHud { display: flex; align-items: center; gap: 9px; padding: 0 8px 0 18px; height: 58px; border-radius: 999px; opacity: 0; white-space: nowrap; }
+  #rHud .dot { width: 12px; height: 12px; border-radius: 50%; background: #ff3b30; box-shadow: 0 0 12px rgba(255,59,48,.9); }
+  #rHud .time { color: white; font: 700 18px var(--font); font-variant-numeric: tabular-nums; min-width: 52px; }
+  #rHud .rbtn { width: 40px; height: 40px; }
+  #rStop { width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; background: #ff3b30; border: 1px solid rgba(255,255,255,.5); }
+  #rSaving { color: white; font: 700 16px var(--font); display: none; padding-right: 14px; }
+  #rMb { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 9px 0 5px; border-radius: 7px; background: rgba(255,255,255,0.28); color: white;
+    font: 600 14px var(--font); font-variant-numeric: tabular-nums; opacity: 0; transform: translate(-50%, -50%); }
+  #rMb i { width: 17px; height: 17px; border-radius: 50%; background: #ff3b30; display: grid; place-items: center; }
+  #rMb i::after { content: ""; width: 6px; height: 6px; border-radius: 1.5px; background: white; }
+  #p3 { opacity: 0; }
+  #p3 .badge { position: absolute; left: 10px; bottom: 10px; display: flex; gap: 6px; align-items: center; padding: 5px 10px; border-radius: 999px;
+    background: rgba(0,0,0,.6); color: white; font: 700 13px var(--font); font-variant-numeric: tabular-nums; }
+  #rcap { opacity: 0; }
+
   /* Cursor */
   #cursor { left: 0; top: 0; width: 0; height: 0; z-index: 50; }
   #cursor svg { position: absolute; display: none; }
@@ -530,6 +561,39 @@
       <div class="keys"><div class="key" id="ek0">A</div><div class="key" id="ek1">T</div><div class="key" id="ek2">B</div></div></div>
 
     <!-- Captions -->
+    <!-- ================= RECORDING SCENE ================= -->
+    <div class="rhair abs" id="rhx" style="left:0;width:1920px;height:1px"></div>
+    <div class="rhair abs" id="rhy" style="top:0;width:1px;height:1080px"></div>
+    <div id="rSel" class="abs"><i style="left:0;top:0"></i><i style="left:50%;top:0"></i><i style="left:100%;top:0"></i><i style="left:100%;top:50%"></i>
+      <i style="left:100%;top:100%"></i><i style="left:50%;top:100%"></i><i style="left:0;top:100%"></i><i style="left:0;top:50%"></i></div>
+    <div id="rSize" class="abs"></div>
+    <div id="rOutline" class="abs"></div>
+    <div id="rBar" class="abs glass">
+      <span class="dim">480 × 370</span>
+      <div class="rseg"><b class="on">Video</b><b>GIF</b></div>
+      <div class="rbtn on"><svg width="14" height="18" viewBox="0 0 14 18" fill="white"><rect x="3.5" y="0" width="7" height="11" rx="3.5"/><path d="M1 8.5a6 6 0 0 0 12 0M7 14.5v3" stroke="white" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg></div>
+      <div class="rbtn on"><svg width="18" height="16" viewBox="0 0 24 20" fill="white"><path d="M2 7h4l5-4.5v15L6 13H2z"/><path d="M15 6.5a5 5 0 0 1 0 7M18.5 3.5a9.5 9.5 0 0 1 0 13" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/></svg></div>
+      <div class="rbtn"><svg width="12" height="12" viewBox="0 0 12 12" stroke="white" stroke-width="2.2" stroke-linecap="round"><path d="M2 2l8 8M10 2l-8 8"/></svg></div>
+      <div id="rRec"><i></i>Record</div>
+    </div>
+    <div id="rCount" class="abs glass">3</div>
+    <div id="rHud" class="abs glass">
+      <div class="dot"></div><div class="time" id="rTime">0:00</div>
+      <div style="width:26px"></div>
+      <div class="rbtn"><svg width="12" height="14" viewBox="0 0 12 14" fill="white"><rect x="1" y="1" width="3.6" height="12" rx="1"/><rect x="7.4" y="1" width="3.6" height="12" rx="1"/></svg></div>
+      <div class="rbtn"><svg width="16" height="16" viewBox="0 0 14 14" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 7a4.5 4.5 0 1 0 1.4-3.3"/><path d="M2.3 1.8v2.6h2.6"/></svg></div>
+      <div class="rbtn"><svg width="14" height="15" viewBox="0 0 12 13" fill="none" stroke="white" stroke-width="1.8" stroke-linecap="round"><path d="M1 3h10M4.5 3V1.5h3V3M2.5 3l.6 8.5h5.8L9.5 3"/></svg></div>
+      <div id="rStop"><svg width="13" height="13" viewBox="0 0 11 11"><rect width="11" height="11" rx="2" fill="white"/></svg></div>
+      <div id="rSaving">Saving…</div>
+    </div>
+    <div id="rMb" class="abs"><i></i><span id="rMbTime">0:00</span></div>
+    <div id="p3" class="abs preview glass">
+      <div class="shot clip" id="p3shot"><div class="badge"><svg width="9" height="10" viewBox="0 0 9 10"><path d="M0 0l9 5-9 5z" fill="white"/></svg><span>0:04</span></div></div>
+      <div class="ptoast" id="p3toast">✓ Copied</div>
+    </div>
+    <div id="rcap" class="abs caption glass"><div><div class="lbl">Record</div><div class="ttl">Video or GIF, with your voice if you like</div></div>
+      <div class="keys"><div class="key" id="rk0">⌃</div><div class="key" id="rk1">⇧</div><div class="key" id="rk2">6</div></div></div>
+
     <div id="captions"></div>
 
     <div id="flash" class="layer"></div>
@@ -557,7 +621,7 @@
         <div class="chip"><b>No</b> account</div><div class="chip"><b>No</b> subscription</div><div class="chip"><b>No</b> tracking</div><div class="chip"><b>Open</b> source</div>
       </div>
       <div id="oKeys" class="chips" style="margin-top:16px">
-        <div class="chip"><b>⌃⇧4</b> Area</div><div class="chip"><b>⌃⇧5</b> Window</div><div class="chip"><b>⌃⇧3</b> Screen</div><div class="chip"><b>⌃⇧G</b> Gallery</div>
+        <div class="chip"><b>⌃⇧4</b> Area</div><div class="chip"><b>⌃⇧5</b> Window</div><div class="chip"><b>⌃⇧3</b> Screen</div><div class="chip"><b>⌃⇧6</b> Record</div><div class="chip"><b>⌃⇧G</b> Gallery</div>
       </div>
       <div id="oUrl" class="url-big" style="margin-top:48px">Download at <span>nearbycoder.github.io/snaps</span></div>
       <div id="oReq" style="margin-top:12px;font:500 19px var(--rounded);color:rgba(255,255,255,0.55)">For macOS 26 and later · Developer ID signed · Notarized by Apple</div>
@@ -934,13 +998,15 @@ function renderMain(t, T) {
 // ---------- Install scene (absolute time T) ----------
 const INSTALL = { start: 3.0, end: 12.0, freeze: 4.0 };
 const INSTALL_SHIFT = INSTALL.end - INSTALL.freeze; // main timeline resumes at 4.0 when T = 12.0
-// The main timeline pauses during the inserted install (T 3–12) and editor (T 28.7–36.2) scenes.
+// The main timeline pauses during the inserted install (T 3–12), editor (T 28.7–36.2) and recording (T 45.2–54.2) scenes.
 const mainTime = (T) =>
   T < INSTALL.freeze ? T
   : T < INSTALL.end ? INSTALL.freeze
   : T < 28.7 ? T - INSTALL_SHIFT
   : T < 36.2 ? 20.7
-  : T - INSTALL_SHIFT - 7.5;
+  : T < 45.2 ? T - INSTALL_SHIFT - 7.5
+  : T < 54.2 ? 29.7
+  : T - INSTALL_SHIFT - 7.5 - 9.0;
 
 const DMG_SCALE = 1.3;
 const dmgPt = (lx, ly) => ({ x: 960 + (lx - 320) * DMG_SCALE, y: 520 + (ly - 216) * DMG_SCALE });
@@ -1099,13 +1165,116 @@ function renderEditor(T) {
   return true;
 }
 
+// ---------- Recording scene (absolute time T) ----------
+const REC = { start: 45.2, end: 54.2, freeze: 29.7 };
+const RA = { x: 600, y: 395, w: 480, h: 370 };       // the recorded area
+const P3 = { w: 240, h: 180 };
+document.getElementById("p3shot").insertAdjacentHTML("afterbegin", scaled(weather(), 400, 300, P3.w / 400));
+set($("p3shot"), { width: P3.w + "px", height: P3.h + "px" });
+
+function recordCursorPath() {
+  const start = cursorAt(REC.freeze);
+  const rec = { x: 840 + 160, y: RA.y + RA.h + 14 + 28 };    // Record button in the bar
+  const stop = { x: 840 + 116, y: RA.y + RA.h + 14 + 29 };   // Stop in the controls
+  const u = (x) => REC.start + x;
+  return [
+    [u(0), start.x, start.y], [u(0.8), start.x, start.y], [u(1.3), RA.x, RA.y], [u(1.4), RA.x, RA.y],
+    [u(2.3), RA.x + RA.w, RA.y + RA.h], [u(2.45), RA.x + RA.w, RA.y + RA.h], [u(2.95), rec.x, rec.y], [u(3.15), rec.x, rec.y],
+    [u(4.6), 760, 560], [u(5.0), 760, 560], [u(5.6), 930, 640], [u(5.9), 930, 640], [u(6.6), 900, 520],
+    [u(7.15), stop.x, stop.y], [u(7.4), stop.x, stop.y], [u(8.9), start.x, start.y],
+  ];
+}
+let RECORD_CURSOR = null;
+
+function renderRecord(T) {
+  const u = T - REC.start;
+  // The new recording's preview outlives the scene until the outro covers it.
+  const pIn = prog(u, 7.7, 0.45, E.back) * (1 - prog(u, 9.3, 0.5, E.in));
+  const bl = BL(P3);
+  set($("p3"), { left: bl.x + "px", top: bl.y + "px", opacity: Math.min(1, pIn), transform: `translateX(${(1 - Math.min(1, pIn)) * -48}px)` });
+  const toast = prog(u, 7.95, 0.3, E.back) * (1 - prog(u, 8.8, 0.25, E.in));
+  set($("p3toast"), { opacity: Math.min(1, toast), transform: `translate(-50%, -50%) scale(${0.85 + 0.15 * Math.min(1, toast)})` });
+
+  const active = u >= 0 && u < REC.end - REC.start;
+  const k = prog(u, 0.0, 0.45, E.quint) * (1 - prog(u, 8.5, 0.35, E.in));
+  set($("rcap"), { opacity: active ? k : 0, transform: `translateX(-50%) translateY(${(1 - k) * 22}px)` });
+  // The main timeline is paused on its gallery caption; this scene has its own.
+  if (active) for (const c of $("captions").children) c.style.opacity = 0;
+  if (!active) {
+    for (const id of ["rSel", "rSize", "rBar", "rCount", "rOutline", "rHud", "rMb", "rhx", "rhy"]) $(id).style.opacity = 0;
+    return false;
+  }
+  [0.35, 0.5, 0.65].forEach((d, i) => {
+    const down = u >= d && u < 1.0;
+    set($("rk" + i), { transform: down ? "translateY(4px)" : "none", boxShadow: down ? "0 0 0 #b9bfd0, 0 0 22px rgba(165,243,252,0.85)" : "", background: down ? "linear-gradient(180deg, #ecfeff, #cffafe)" : "" });
+  });
+
+  RECORD_CURSOR = RECORD_CURSOR || recordCursorPath();
+  const cur = pathAt(RECORD_CURSOR, T);
+
+  // Picking: dim, crosshair, drag, then the bar.
+  const pick = prog(u, 0.8, 0.2) * (1 - prog(u, 3.1, 0.3));
+  const dragging = u >= 1.4 && u < 2.3;
+  const sel = u < 1.4 ? null : dragging
+    ? { x: RA.x, y: RA.y, w: Math.max(1, cur.x - RA.x), h: Math.max(1, cur.y - RA.y) }
+    : RA;
+  set($("rSel"), sel
+    ? { opacity: pick, left: sel.x + "px", top: sel.y + "px", width: sel.w + "px", height: sel.h + "px", boxShadow: `0 0 0 4000px rgba(0,0,0,${0.36 * pick})` }
+    : { opacity: pick, left: "-20px", top: "-20px", width: "1px", height: "1px", boxShadow: `0 0 0 4000px rgba(0,0,0,${0.36 * pick})`, border: "0" });
+  if (sel) $("rSel").style.border = "";
+  for (const h of $("rSel").children) h.style.display = sel && !dragging ? "block" : "none";
+  const hair = u < 1.4 ? pick : 0;
+  set($("rhx"), { opacity: hair, top: cur.y + "px" });
+  set($("rhy"), { opacity: hair, left: cur.x + "px" });
+  set($("rSize"), { opacity: dragging ? 1 : 0, left: (sel ? sel.x + sel.w - 110 : 0) + "px", top: (sel ? sel.y + sel.h + 10 : 0) + "px" });
+  if (sel) $("rSize").textContent = `${Math.round(sel.w)} × ${Math.round(sel.h)}`;
+  const bar = prog(u, 2.4, 0.35, E.back) * (1 - prog(u, 3.15, 0.2, E.in));
+  set($("rBar"), { opacity: Math.min(1, bar), left: 840 + "px", top: RA.y + RA.h + 14 + "px", transform: `translateX(-50%) scale(${0.92 + 0.08 * Math.min(1, bar)})` });
+  const recDown = u >= 3.0 && u < 3.12;
+  $("rRec").style.filter = recDown ? "brightness(0.85)" : "";
+
+  // Countdown, then the outline and controls.
+  const n = u < 3.5 ? 3 : u < 3.9 ? 2 : 1;
+  const cd = prog(u, 3.1, 0.15) * (1 - prog(u, 4.2, 0.15));
+  const beat = (u - 3.1) % 0.4;
+  $("rCount").textContent = n;
+  set($("rCount"), { opacity: cd, left: RA.x + RA.w / 2 - 95 + "px", top: RA.y + RA.h / 2 - 95 + "px", transform: `scale(${1.08 - 0.08 * Math.min(1, beat / 0.15)})` });
+  const rec = prog(u, 3.1, 0.25) * (1 - prog(u, 7.45, 0.3));
+  set($("rOutline"), { opacity: rec, left: RA.x - 5 + "px", top: RA.y - 5 + "px", width: RA.w + 10 + "px", height: RA.h + 10 + "px" });
+  const hud = prog(u, 4.3, 0.35, E.back) * (1 - prog(u, 7.75, 0.25, E.in));
+  set($("rHud"), { opacity: Math.min(1, hud), left: 840 + "px", top: RA.y + RA.h + 14 + "px", transform: "translateX(-50%)" });
+  const secs = Math.max(0, Math.min(4, Math.floor((u - 4.3) * 1.35)));
+  $("rTime").textContent = `0:0${secs}`;
+  $("rMbTime").textContent = `0:0${secs}`;
+  const saving = u >= 7.42;
+  $("rStop").style.display = saving ? "none" : "grid";
+  $("rSaving").style.display = saving ? "block" : "none";
+  for (const b of $("rHud").querySelectorAll(".rbtn")) b.style.display = saving ? "none" : "grid";
+  const mb = MB_SNAPS();
+  const mbOn = prog(u, 4.3, 0.2) * (1 - prog(u, 7.45, 0.2));
+  set($("rMb"), { opacity: mbOn, left: mb.x + 22 + "px", top: mb.y + "px" });
+  $("mbSnaps").style.opacity = 1 - mbOn;
+
+  // Cursor: arrow, then crosshair while picking; clicks get the recording's click ring.
+  const type = u >= 0.8 && u < 2.35 ? "cross" : "arrow";
+  for (const c of ALL_CURSORS) $("cur-" + c).style.display = c === type ? "block" : "none";
+  const clicks = [3.0, 5.0, 5.9, 7.3];
+  const press = dragging || clicks.some((c) => u >= c && u < c + 0.1);
+  set($("cursor"), { left: cur.x + "px", top: cur.y + "px", opacity: 1, transform: `scale(${press ? 0.88 : 1})` });
+  let r = null;
+  for (const c of clicks) if (u >= c && u < c + 0.4) r = (u - c) / 0.4;
+  set($("ripple"), { left: cur.x - 23 + "px", top: cur.y - 23 + "px", opacity: r === null ? 0 : 0.8 * (1 - r), transform: `scale(${r === null ? 1 : 0.4 + r})` });
+  return true;
+}
+
 function renderAt(T) {
   renderMain(mainTime(T), T);
   renderInstall(T);
   renderEditor(T);
+  renderRecord(T);
 }
 
-window.DURATION = 49.5;
+window.DURATION = 58.5;
 window.renderAt = renderAt;
 window.addEventListener("load", () => {
   buildCursorPath();

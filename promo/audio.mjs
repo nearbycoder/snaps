@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SR = 48000;
-const DURATION = 49.5;
+const DURATION = 58.5;
 const N = SR * DURATION;
 
 const music = [new Float32Array(N), new Float32Array(N)];
@@ -182,7 +182,7 @@ const CHORDS = [
   { root: 40, notes: [52, 55, 59, 62] },
   { root: 45, notes: [57, 60, 64, 67] },
 ];
-const OUTRO = 45.4; // outro starts (absolute)
+const OUTRO = 54.4; // outro starts (absolute)
 const bars = Math.ceil(DURATION / BAR);
 for (let b = 0; b < bars; b++) {
   const t0 = b * BAR, ch = CHORDS[b % 4];
@@ -226,9 +226,11 @@ add(music, OUTRO, (() => {
   add(music, t, bell(mtof(m), 2.2, 1.4), db(-20), k % 2 ? 0.3 : -0.3, 0.6));
 
 // ---------- effects (absolute times) ----------
-// Main-timeline seconds → absolute seconds (the install scene inserts 8s at 4.0, the editor scene 7.5s at 20.7).
-const M = (m) => (m < 4 ? m : m < 20.7 ? m + 8 : m + 15.5);
+// Main-timeline seconds → absolute seconds (the install scene inserts 8s at 4.0, the editor scene 7.5s at 20.7,
+// the recording scene 9s at 29.7).
+const M = (m) => (m < 4 ? m : m < 20.7 ? m + 8 : m < 29.7 ? m + 15.5 : m + 24.5);
 const E0 = 28.7; // editor scene start (absolute)
+const R0 = 45.2; // recording scene start (absolute)
 const fx = [];
 const at = (t, buf, gain, pan = 0, rev = 0.15) => fx.push([t, buf, gain, pan, rev]);
 
@@ -295,6 +297,21 @@ for (let i = 0; i < 6; i++) at(M(25.78 + i * 0.07), pop(700 + i * 60, 1100 + i *
 at(M(28.15), keyClick(), db(-12));
 at(M(28.2), pop(), db(-18));
 at(M(29.3), whoosh(0.4, 1800, 600), db(-24));
+// Recording scene
+for (const k of [0.35, 0.5, 0.65]) at(R0 + k, keyClick(), db(-10));
+at(R0 + 0.8, whoosh(0.4, 1600, 500), db(-25));
+at(R0 + 1.4, pop(700, 1000, 0.05), db(-24), -0.2);
+at(R0 + 1.45, whoosh(0.85, 900, 1700), db(-31), -0.1);
+at(R0 + 2.4, pop(), db(-19));
+at(R0 + 3.0, keyClick(), db(-12), 0.2);
+[3.1, 3.5, 3.9].forEach((k, i) => at(R0 + k, pop(520 + i * 60, 760 + i * 60, 0.07), db(-17), 0, 0.3));
+at(R0 + 4.3, chime([84, 91], 0.08), db(-18), 0, 0.35);
+at(R0 + 5.0, keyClick(), db(-13), -0.1);
+at(R0 + 5.9, keyClick(), db(-13), 0.05);
+at(R0 + 7.3, keyClick(), db(-11), 0.1);
+at(R0 + 7.35, thunk(), db(-17));
+at(R0 + 7.7, whoosh(0.5, 600, 2400), db(-21), -0.5);
+at(R0 + 7.95, chime([81, 88], 0.07), db(-19), -0.5, 0.3);
 
 for (const [t, buf, gain, pan, rev] of fx) add(sfx, t, buf, gain, pan, rev);
 
