@@ -33,7 +33,7 @@ struct PreviewCardView: View {
                 inset: PreviewController.padding,
                 onHover: actions.hover,
                 onClick: nil,
-                onDoubleClick: actions.annotate,
+                onDoubleClick: model.canEdit ? actions.annotate : actions.open,
                 onDragStart: actions.dragStarted,
                 onDragEnd: actions.dragEnded
             )
@@ -42,6 +42,12 @@ struct PreviewCardView: View {
                 controls
                     .padding(PreviewController.padding + 6)
                     .transition(.opacity)
+            } else if let recording = model.recording {
+                RecordingBadge(kind: model.kind, duration: recording.duration)
+                    .padding(PreviewController.padding + 7)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .transition(.opacity)
+                    .allowsHitTesting(false)
             }
 
             if let toast = model.toast {
@@ -60,11 +66,17 @@ struct PreviewCardView: View {
     private var thumbnail: some View {
         ZStack {
             Rectangle().fill(.black.opacity(0.12))
-            Image(nsImage: model.image)
-                .resizable()
-                .interpolation(.high)
-                .aspectRatio(contentMode: .fit)
-                .frame(width: imageSize.width, height: imageSize.height)
+            if model.kind == .gif {
+                AnimatedImageView(url: model.fileURL)
+                    .id(model.revision)
+                    .frame(width: imageSize.width, height: imageSize.height)
+            } else {
+                Image(nsImage: model.image)
+                    .resizable()
+                    .interpolation(.high)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: imageSize.width, height: imageSize.height)
+            }
         }
         .frame(width: imageArea.width, height: imageArea.height)
         .clipShape(RoundedRectangle(cornerRadius: innerRadius, style: .continuous))
@@ -88,7 +100,13 @@ struct PreviewCardView: View {
             Spacer()
             GlassEffectContainer(spacing: 6) {
                 HStack(spacing: 6) {
-                    GlassIconButton(symbol: "pencil", help: "Annotate", action: actions.annotate)
+                    if model.canEdit {
+                        GlassIconButton(
+                            symbol: model.kind.isRecording ? "scissors" : "pencil",
+                            help: model.kind.isRecording ? "Trim" : "Annotate",
+                            action: actions.annotate
+                        )
+                    }
                     GlassIconButton(symbol: "doc.on.doc", help: "Copy to clipboard", action: actions.copy)
                     GlassIconButton(
                         symbol: model.isSaved ? "folder" : "square.and.arrow.down",
@@ -100,6 +118,48 @@ struct PreviewCardView: View {
             }
         }
     }
+}
+
+/// Duration (and GIF) label on a recording's thumbnail.
+struct RecordingBadge: View {
+    let kind: CaptureKind
+    let duration: Double?
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if kind == .gif {
+                Text("GIF").font(.system(size: 9.5, weight: .heavy))
+            } else {
+                Image(systemName: "play.fill").font(.system(size: 8, weight: .bold))
+            }
+            if let duration {
+                Text(max(duration, 1).recordingClock)
+                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+            }
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
+        .background(.black.opacity(0.55), in: Capsule())
+    }
+}
+
+/// Plays an animated GIF; NSImageView animates GIFs on its own, SwiftUI's Image doesn't.
+struct AnimatedImageView: NSViewRepresentable {
+    let url: URL
+
+    func makeNSView(context: Context) -> NSImageView {
+        let view = NSImageView()
+        view.imageScaling = .scaleProportionallyUpOrDown
+        view.animates = true
+        view.isEditable = false
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        view.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        view.image = NSImage(contentsOf: url)
+        return view
+    }
+
+    func updateNSView(_ view: NSImageView, context: Context) {}
 }
 
 struct GlassIconButton: View {

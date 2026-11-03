@@ -41,29 +41,40 @@ struct SettingsView: View {
                 PermissionBanner()
             }
 
-            GlassSection("Shortcuts", symbol: "keyboard") {
-                ForEach(ShortcutAction.allCases) { mode in
-                    HStack(spacing: 12) {
-                        Image(systemName: mode.symbol)
-                            .font(.system(size: 15))
-                            .frame(width: 22)
-                            .foregroundStyle(.tint)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(mode.title).font(.system(size: 13, weight: .medium))
-                            Text(mode.detail).font(.system(size: 11)).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        ShortcutRecorder(
-                            shortcut: Binding(
-                                get: { settings.shortcuts[mode] },
-                                set: { settings.setShortcut($0, for: mode) }
-                            ),
-                            isUnavailable: state.unavailableShortcuts.contains(mode)
-                        )
-                    }
+            TabSwitch(selection: $state.settingsTab)
+
+            // Every tab is laid out, so the window stays the size of the tallest instead of jumping.
+            ZStack(alignment: .top) {
+                ForEach(SettingsTab.allCases) { tab in
+                    let selected = tab == state.settingsTab
+                    page(tab)
+                        .opacity(selected ? 1 : 0)
+                        .allowsHitTesting(selected)
+                        .accessibilityHidden(!selected)
                 }
             }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 40)
+        .padding(.bottom, 24)
+        .frame(width: 500)
+        .fixedSize(horizontal: false, vertical: true)
+        .background {
+            VisualEffectBackground().ignoresSafeArea()
+        }
+    }
 
+    @ViewBuilder
+    private func page(_ tab: SettingsTab) -> some View {
+        switch tab {
+        case .general: generalPage
+        case .recording: recordingPage
+        case .shortcuts: shortcutsPage
+        }
+    }
+
+    private var generalPage: some View {
+        VStack(alignment: .leading, spacing: 18) {
             GlassSection("Preview", symbol: "rectangle.on.rectangle") {
                 HStack(spacing: 16) {
                     CornerPicker(selection: $settings.corner)
@@ -109,7 +120,7 @@ struct SettingsView: View {
                 }
                 SettingToggle(
                     "Open in the editor",
-                    detail: "Every capture opens ready to annotate, with the arrow selected.",
+                    detail: "Every screenshot opens ready to annotate, with the arrow selected.",
                     isOn: $settings.openEditorAfterCapture
                 )
                 Divider().opacity(0.5)
@@ -124,13 +135,79 @@ struct SettingsView: View {
                 ))
             }
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 40)
-        .padding(.bottom, 24)
-        .frame(width: 500)
-        .fixedSize(horizontal: false, vertical: true)
-        .background {
-            VisualEffectBackground().ignoresSafeArea()
+    }
+
+    private var recordingPage: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            GlassSection("Recording", symbol: "record.circle") {
+                SettingToggle("Show the pointer", isOn: $settings.recordShowsCursor)
+                SettingToggle(
+                    "Highlight clicks",
+                    detail: "Draws a ring wherever you click.",
+                    isOn: $settings.recordHighlightsClicks
+                )
+                SettingToggle(
+                    "Count down from 3",
+                    detail: "Click the countdown to start right away.",
+                    isOn: $settings.recordCountdown
+                )
+                Divider().opacity(0.5)
+                SettingMenu("Video frame rate", selection: $settings.videoFrameRate) { $0.title }
+            }
+
+            GlassSection("Sound", symbol: "waveform") {
+                SettingToggle(
+                    "Record computer audio",
+                    detail: "Whatever your Mac plays, except Snaps’ own sounds.",
+                    isOn: $settings.recordSystemAudio
+                )
+                SettingToggle(
+                    "Record microphone",
+                    detail: "Snaps asks for access the first time.",
+                    isOn: $settings.recordMicrophone
+                )
+                Text("GIFs never have sound. You can also flip both switches in the bar under the selection.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            GlassSection("GIF", symbol: RecordingFormat.gif.symbol) {
+                SettingMenu("Frame rate", selection: $settings.gifFrameRate) { $0.title }
+                SettingMenu("Size", selection: $settings.gifSize) { $0.title }
+                Text("Smaller and slower GIFs load faster in chats and docs. Retina recordings are recorded at 1×.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private var shortcutsPage: some View {
+        GlassSection("Shortcuts", symbol: "keyboard") {
+            ForEach(ShortcutAction.allCases) { mode in
+                HStack(spacing: 12) {
+                    Image(systemName: mode.symbol)
+                        .font(.system(size: 15))
+                        .frame(width: 22)
+                        .foregroundStyle(mode.recordingFormat == nil ? AnyShapeStyle(.tint) : AnyShapeStyle(.red))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(mode.title).font(.system(size: 13, weight: .medium))
+                        Text(mode.detail).font(.system(size: 11)).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    ShortcutRecorder(
+                        shortcut: Binding(
+                            get: { settings.shortcuts[mode] },
+                            set: { settings.setShortcut($0, for: mode) }
+                        ),
+                        isUnavailable: state.unavailableShortcuts.contains(mode)
+                    )
+                }
+            }
+            Text("Press a recording shortcut again to stop.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -158,6 +235,80 @@ struct SettingsView: View {
         panel.prompt = "Choose"
         if panel.runModal() == .OK, let url = panel.url {
             settings.saveFolder = url
+        }
+    }
+}
+
+enum SettingsTab: String, CaseIterable, Identifiable {
+    case general, recording, shortcuts
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .general: "General"
+        case .recording: "Recording"
+        case .shortcuts: "Shortcuts"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .general: "gearshape"
+        case .recording: "record.circle"
+        case .shortcuts: "keyboard"
+        }
+    }
+}
+
+struct TabSwitch: View {
+    @Binding var selection: SettingsTab
+
+    var body: some View {
+        GlassEffectContainer(spacing: 4) {
+            HStack(spacing: 4) {
+                ForEach(SettingsTab.allCases) { tab in
+                    let selected = tab == selection
+                    Button {
+                        withAnimation(.snappy(duration: 0.2)) { selection = tab }
+                    } label: {
+                        Label(tab.title, systemImage: tab.symbol)
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(selected ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+                    .glassEffect(selected ? .regular.tint(.accentColor).interactive() : .regular.interactive(), in: .capsule)
+                    .accessibilityAddTraits(selected ? .isSelected : [])
+                }
+            }
+        }
+    }
+}
+
+struct SettingMenu<Value: Hashable & CaseIterable & Identifiable>: View where Value.AllCases: RandomAccessCollection {
+    let title: String
+    @Binding var selection: Value
+    let label: (Value) -> String
+
+    init(_ title: String, selection: Binding<Value>, label: @escaping (Value) -> String) {
+        self.title = title
+        self._selection = selection
+        self.label = label
+    }
+
+    var body: some View {
+        HStack {
+            Text(title).font(.system(size: 13))
+            Spacer()
+            Picker(title, selection: $selection) {
+                ForEach(Value.allCases) { Text(label($0)).tag($0) }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .fixedSize()
         }
     }
 }
