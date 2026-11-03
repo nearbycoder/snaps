@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Snaps: screenshots that land on your clipboard</title>
-  <meta name="description" content="Snaps is a free, open source macOS menu bar app for screenshots and screen recordings. Capture an area, a window or the whole screen, or record it as a video or GIF. It's instantly on your clipboard, with a floating glass preview you can drag anywhere, an editor for arrows, text and blur, and trimming for recordings.">
+  <meta name="description" content="Snaps is a free, open source macOS menu bar app for screenshots and screen recordings. Capture an area, a window or the whole screen with a pixel loupe, or record it as a video or GIF. It's instantly on your clipboard, with a floating glass preview you can drag anywhere, an editor for arrows, text and blur, and trimming for recordings.">
   <meta name="theme-color" content="#0b1026">
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -272,6 +272,7 @@
       <a class="brand" href="#top"><img src="assets/icon.svg" alt="">Snaps</a>
       <div class="nav-links">
         <a href="#how">How it works</a>
+        <a href="#pick">Pick</a>
         <a href="#annotate">Annotate</a>
         <a href="#record">Record</a>
         <a href="#features">Features</a>
@@ -339,6 +340,26 @@
         <h3>Or drag the preview</h3>
         <p>A glass thumbnail floats in your corner. Drag it into any app or folder, or hover for copy, save, pin and open.</p>
         <div class="keys"><kbd>↖︎ drag</kbd></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="pick" class="wrap">
+    <div class="annotate">
+      <div class="copy reveal">
+        <div class="kicker">New in 1.2</div>
+        <h2>Pick it pixel-perfect.</h2>
+        <p>Press <b>⌃⇧4</b> and the pointer becomes a hairline crosshair with a loupe beside it. The window under your pointer gets a thin outline, and the app you're capturing stays active, so it looks exactly as you see it.</p>
+        <ul class="tools">
+          <li><kbd>click</kbd><div><b>A window, on its own</b>Cut to its rounded corners, transparent around it, shadow optional.</div></li>
+          <li><kbd>drag</kbd><div><b>Any area</b>The loupe shows the size while you drag.</div></li>
+          <li><kbd>🔍</kbd><div><b>Loupe</b>The pixels under the pointer at 8×, with their position and hex color.</div></li>
+          <li><kbd>⌘C</kbd><div><b>Straight to the editor</b>Turn off the preview and the gallery for shoot, mark up, paste, gone.</div></li>
+        </ul>
+        <p class="credit">The picker was contributed by <a href="https://github.com/lafraia">@lafraia</a> in <a href="https://github.com/nearbycoder/snaps/pull/2">#2</a>.</p>
+      </div>
+      <div class="shot glass reveal">
+        <img src="assets/picker.jpg" width="1200" height="700" loading="lazy" alt="The Snaps picker over a dashboard window: a thin blue outline around the window, a hairline crosshair across the screen, a loupe magnifying the chart line with its position and color #6366F1, and a hint listing click, drag and Esc">
       </div>
     </div>
   </section>
@@ -457,6 +478,7 @@
       <div class="sc-row"><div class="what"><b>Record GIF</b><span>The same, as a looping GIF</span></div><div class="keys"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>7</kbd></div></div>
       <div class="sc-row"><div class="what"><b>Gallery</b><span>Recent captures across the top of the screen</span></div><div class="keys"><kbd>⌃</kbd><kbd>⇧</kbd><kbd>G</kbd></div></div>
       <div class="sc-row"><div class="what"><b>In the editor</b><span>Select, arrow, text, blur · Done</span></div><div class="keys"><kbd>V</kbd><kbd>A</kbd><kbd>T</kbd><kbd>B</kbd><kbd>⌘↩</kbd></div></div>
+      <div class="sc-row"><div class="what"><b>In the video editor</b><span>Trim · Copy · Done</span></div><div class="keys"><kbd>T</kbd><kbd>⌘C</kbd><kbd>⌘↩</kbd></div></div>
     </div>
     <p class="note reveal">⌃ Control · ⇧ Shift. Everything is also one click away in the menu bar.</p>
   </section>

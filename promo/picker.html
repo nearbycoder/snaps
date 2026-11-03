@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Snaps — picker illustration</title>
+<!-- 1200×700 illustration of the screenshot picker for the site. Rendered to docs/assets/picker.jpg by `npm run picker`. -->
+<style>
+  :root { --ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif; --accent: #0a84ff; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1200px; height: 700px; overflow: hidden; font-family: var(--ui); -webkit-font-smoothing: antialiased; }
+  .abs { position: absolute; }
+  #desk { position: absolute; inset: 0; overflow: hidden;
+    background:
+      radial-gradient(520px 400px at 12% 14%, #7dd3fc, transparent 70%),
+      radial-gradient(640px 500px at 90% 10%, #a78bfa, transparent 70%),
+      radial-gradient(640px 500px at 72% 100%, #6366f1, transparent 70%),
+      radial-gradient(560px 420px at 4% 100%, #22d3ee, transparent 70%),
+      linear-gradient(160deg, #60a5fa, #4f46e5); }
+  #menubar { left: 0; top: 0; width: 1200px; height: 28px; display: flex; align-items: center; gap: 18px; padding: 0 14px;
+    color: white; font-size: 13px; font-weight: 500; background: rgba(255,255,255,0.14); -webkit-backdrop-filter: blur(30px); backdrop-filter: blur(30px); }
+  #menubar b { font-weight: 700; }
+  #menubar .right { margin-left: auto; display: flex; gap: 16px; align-items: center; }
+
+  .window { border-radius: 14px; background: #fbfbfd; box-shadow: 0 22px 50px rgba(15,23,60,0.35), 0 0 0 1px rgba(0,0,0,0.06); overflow: hidden; }
+  .window .bar { height: 34px; display: flex; align-items: center; gap: 7px; padding: 0 14px; border-bottom: 1px solid #eceef3; font: 600 12.5px var(--ui); color: #3b4255; }
+  .window .bar i { width: 11px; height: 11px; border-radius: 50%; display: block; }
+  .window .bar span { margin-left: 12px; }
+  .dim .bar i { background: #d4d6dd !important; }
+
+  .stat { padding: 18px 20px; }
+  .stat .k { font: 600 12px var(--ui); color: #7a8295; }
+  .stat .v { font: 800 30px var(--ui); letter-spacing: -0.8px; color: #161b2b; margin-top: 2px; }
+  .stat .v span { font-size: 12px; color: #059669; background: #d1fae5; padding: 3px 8px; border-radius: 99px; vertical-align: 6px; margin-left: 6px; }
+  .rows { padding: 0 20px; }
+  .row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid #f0f1f5; font: 500 12.5px var(--ui); color: #3b4255; }
+  .row i { width: 26px; height: 26px; border-radius: 8px; display: block; }
+  .row b { margin-left: auto; font-weight: 700; color: #161b2b; }
+
+  /* Hover outline: thin accent line, no fill, following the window's rounded corners. */
+  #outline { border: 2px solid var(--accent); border-radius: 15px; box-shadow: 0 0 0 1px rgba(255,255,255,.35); }
+
+  .hair { background: rgba(255,255,255,0.85); box-shadow: 0 0 0 0.5px rgba(0,0,0,0.35); }
+
+  #loupe { width: 170px; border-radius: 14px; overflow: hidden; background: rgba(28,28,32,0.92); box-shadow: 0 14px 34px rgba(10,14,40,.45), 0 0 0 1px rgba(255,255,255,.18); }
+  #grid { display: grid; grid-template-columns: repeat(17, 10px); grid-auto-rows: 10px; width: 170px; height: 170px; position: relative; }
+  #grid::after { content: ""; position: absolute; left: 80px; top: 80px; width: 10px; height: 10px; outline: 2px solid white; box-shadow: 0 0 0 3px rgba(0,0,0,.45); }
+  #loupe .read { display: flex; justify-content: space-between; padding: 6px 9px; font: 600 11px ui-monospace, "SF Mono", monospace; color: rgba(255,255,255,.88); }
+
+  #hint { padding: 9px 13px; border-radius: 11px; background: rgba(28,28,32,0.86); color: rgba(255,255,255,.92); font: 500 12px/1.55 var(--ui); box-shadow: 0 10px 24px rgba(10,14,40,.35); }
+  #hint b { font-weight: 700; color: white; }
+</style>
+</head>
+<body>
+<div id="desk">
+  <div id="menubar" class="abs">
+    <svg width="13" height="15" viewBox="0 0 17 20"><path d="M12.6 10.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.9-.9-3-.8-1.6 0-3 .9-3.8 2.3-1.6 2.8-.4 6.9 1.2 9.2.8 1.1 1.7 2.3 2.9 2.3 1.2-.1 1.6-.8 3-.8s1.8.8 3 .7c1.3 0 2.1-1.1 2.8-2.3.9-1.3 1.3-2.6 1.3-2.6s-2.5-1-2.5-3.6zM10.4 3.8c.6-.8 1.1-1.9 1-3-.9 0-2.1.6-2.7 1.4-.6.7-1.1 1.8-1 2.9 1 .1 2.1-.5 2.7-1.3z" fill="white"/></svg>
+    <b>Dashboard</b><span>File</span><span>Edit</span><span>View</span><span>Window</span>
+    <div class="right"><span>Mon 9:41 AM</span></div>
+  </div>
+
+  <!-- a window in the back -->
+  <div class="window dim abs" style="left:96px;top:120px;width:380px;height:300px;opacity:.96">
+    <div class="bar"><i></i><i></i><i></i><span>Notes</span></div>
+    <div style="padding:16px 18px;font:500 12.5px/1.8 var(--ui);color:#4a5168">
+      <b style="font:700 16px var(--ui);color:#1d2333">Launch checklist</b><br>· Screenshots for the changelog<br>· Record the onboarding GIF<br>· Ship on Friday
+    </div>
+  </div>
+
+  <!-- the window under the pointer, outlined -->
+  <div id="win" class="window abs" style="left:420px;top:172px;width:470px;height:390px">
+    <div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span>Dashboard</span></div>
+    <div class="stat">
+      <div class="k">Weekly active users</div>
+      <div class="v">48,210<span>▲ 18.4%</span></div>
+      <svg width="430" height="96" viewBox="0 0 430 96" style="margin-top:10px;display:block">
+        <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6366f1" stop-opacity=".3"/><stop offset="1" stop-color="#6366f1" stop-opacity="0"/></linearGradient></defs>
+        <path d="M0 78 L54 64 L108 70 L162 48 L216 54 L270 34 L324 40 L378 18 L430 8 L430 96 L0 96Z" fill="url(#g)"/>
+        <path d="M0 78 L54 64 L108 70 L162 48 L216 54 L270 34 L324 40 L378 18 L430 8" fill="none" stroke="#6366f1" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="rows">
+      <div class="row"><i style="background:linear-gradient(135deg,#93c5fd,#2563eb)"></i>Sign-ups<b>3,904</b></div>
+      <div class="row"><i style="background:linear-gradient(135deg,#86efac,#16a34a)"></i>Retention<b>71%</b></div>
+    </div>
+  </div>
+  <div id="outline" class="abs" style="left:418px;top:170px;width:474px;height:394px"></div>
+
+  <!-- crosshair across the display -->
+  <div class="hair abs" style="left:0;top:356px;width:1200px;height:1px"></div>
+  <div class="hair abs" style="left:780px;top:0;width:1px;height:700px"></div>
+
+  <div id="hint" class="abs" style="left:982px;top:378px"><b>Click</b> a window to capture it<br><b>Drag</b> to select an area<br><b>Esc</b> to cancel</div>
+
+  <div id="loupe" class="abs" style="left:798px;top:376px">
+    <div id="grid"></div>
+    <div class="read"><span>1560, 712</span><span>#6366F1</span></div>
+  </div>
+</div>
+<script>
+  // 17×17 magnified pixels around the pointer: the chart line crossing the white card.
+  const grid = document.getElementById("grid");
+  for (let y = 0; y < 17; y++) for (let x = 0; x < 17; x++) {
+    const d = Math.abs((y - 8) + (x - 8) * 0.55);
+    let c = "#fbfbfd";
+    if (y > 8 + (x - 8) * -0.55) c = `hsl(239, 84%, ${Math.min(97, 88 + (y - 8) * 0.8)}%)`;
+    if (d < 1.2) c = "#6366f1"; else if (d < 1.9) c = "#a5a7f7";
+    const cell = document.createElement("i");
+    cell.style.cssText = `display:block;background:${c};box-shadow:inset 0 0 0 .5px rgba(0,0,0,.06)`;
+    grid.appendChild(cell);
+  }
+</script>
+</body>
+</html>
