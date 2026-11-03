@@ -53,7 +53,8 @@ cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 IDENTITY="${SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | awk -F'"' '/Apple Development|Developer ID Application/ {print $2; exit}')}"
 IDENTITY="${IDENTITY:--}"
 if [[ "$IDENTITY" == "-" ]]; then echo "→ Signing (ad-hoc)"; else echo "→ Signing ($IDENTITY)"; fi
-codesign --force --deep --options runtime --identifier "$BUNDLE_ID" --sign "$IDENTITY" "$APP" >/dev/null 2>&1
+codesign --force --deep --options runtime --entitlements Resources/Snaps.entitlements \
+  --identifier "$BUNDLE_ID" --sign "$IDENTITY" "$APP" >/dev/null 2>&1
 
 echo "✓ Built $APP"
 

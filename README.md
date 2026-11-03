@@ -10,9 +10,9 @@
 
 # Snaps
 
-A tiny native macOS menu bar app for screenshots, with a Liquid Glass look. **Free and open source (MIT).**
+A tiny native macOS menu bar app for screenshots and screen recordings, with a Liquid Glass look. **Free and open source (MIT).**
 
-Every capture goes straight to your clipboard and appears as a floating preview in the corner of your choice, so you can paste it with ⌘V or drag it into any app.
+Every capture goes straight to your clipboard and appears as a floating preview in the corner of your choice, so you can paste it with ⌘V or drag it into any app. Record an area, a window or a screen as a video or a GIF the same way.
 
 ## Install
 
@@ -33,6 +33,8 @@ Requires macOS 26 or later. Releases are signed with a Developer ID and notarize
 | Area | ⌃⇧4 | Drag to select a region |
 | Window | ⌃⇧5 | Click a window to capture it |
 | Full Screen | ⌃⇧3 | Captures the display under your cursor |
+| Record Video | ⌃⇧6 | Records an area, a window or a screen as MP4. Press again to stop |
+| Record GIF | ⌃⇧7 | The same, as a looping GIF |
 | Gallery | ⌃⇧G | Shows recent captures in a strip across the top of the screen |
 
 Change them in **Settings → Shortcuts**: click a shortcut and type a new combo. Esc cancels, Delete clears it.
@@ -74,6 +76,37 @@ Double-click a preview or a gallery card, or click its pencil, to open the captu
 - **Done** (⌘↩) writes the annotations into the capture, so the preview, the gallery and drag and drop all get the annotated version, and copies it if **Copy to clipboard** is on.
 - Closing the window without Done keeps your annotations as a draft. Until you quit Snaps, reopening a capture brings its annotations back, still editable.
 
+## Recording
+
+Press ⌃⇧6 for a video or ⌃⇧7 for a GIF, or click **Record Video** / **Record GIF** in the menu bar popover. The screen dims:
+
+- **Drag** to select an area. Drag inside it to move it, or its handles to resize it.
+- **Click** without dragging to record the whole display.
+- Press **Space**, then click a window to record just that window, wherever it goes.
+
+A glass bar under the selection shows its size and lets you switch between **Video** and **GIF** and turn the **microphone** and **computer audio** on or off. Press **Return** or click **Record**; **Esc** cancels.
+
+After a 3-second countdown (click it to start right away), a dashed outline marks the area and glass controls float beside it with the time, **pause / resume**, **start over**, **discard** and **stop**. The menu bar icon turns into a red timer; click it, or press the shortcut again, to stop. Snaps' own windows (the controls, the outline, previews) never appear in the recording.
+
+The recording lands in your corner like a screenshot, with its length (and a GIF tag) on the thumbnail. It's on your clipboard as a file (GIFs also paste inline), and you can drag it anywhere.
+
+### Trimming
+
+Double-click a recording's preview or gallery card, or click its scissors, to open it in the video editor:
+
+- **Trim** (T) shows yellow handles on the timeline; drag them and click Trim.
+- The speaker button removes a video's sound.
+- **Save as GIF** makes a GIF from the (trimmed) video, and **Save as Video** turns a GIF back into an MP4. Both are new captures.
+- **Done** (⌘↩) writes the trim into the recording and copies it if **Copy to clipboard** is on. **Copy** (⌘C) copies it without closing.
+
+GIFs are made from a full-quality video that Snaps keeps alongside them, so trimming a GIF never loses quality. Those videos are cleaned up with the cache after 7 days.
+
+### Recording settings
+
+**Settings → Recording** has the video frame rate (30 or 60 fps), whether to show the pointer and highlight clicks, the countdown, computer audio and microphone, and the GIF frame rate (10 to 25 fps) and size (480, 720 or 1080 px wide, or full size). GIFs are recorded at 1×; videos at the display's full resolution, in H.264, or HEVC on displays larger than 4K.
+
+Recording the microphone asks for Microphone access the first time. Computer audio leaves out Snaps' own sounds.
+
 ## Build from source
 
 Requires macOS 26 or later.
@@ -88,7 +121,7 @@ The script compiles with `swiftc` directly. It works with just the Command Line 
 
 ### Screen Recording permission
 
-Snaps needs **Screen Recording** access; without it, captures only contain your wallpaper. On first launch (or from **Set Up Screen Recording** in the menu bar popover), Snaps opens System Settings → Privacy & Security → Screen & System Audio Recording and docks a small glass card to the window. Drag the Snaps icon from the card into the list and switch it on. When the permission comes through, the card offers to relaunch Snaps.
+Snaps needs **Screen Recording** access, for screenshots and recordings alike; without it, captures only contain your wallpaper. On first launch (or from **Set Up Screen Recording** in the menu bar popover), Snaps opens System Settings → Privacy & Security → Screen & System Audio Recording and docks a small glass card to the window. Drag the Snaps icon from the card into the list and switch it on. When the permission comes through, the card offers to relaunch Snaps.
 
 Local builds are signed with your Apple Development certificate if you have one, otherwise ad-hoc; set `SIGN_IDENTITY` to override. With ad-hoc signing, macOS may ask for the permission again after each rebuild.
 
@@ -113,6 +146,11 @@ Sources/Snaps/
   AppCoordinator.swift   wires hotkeys → capture → clipboard → preview
   AppSettings.swift      persisted preferences + runtime state
   Capture.swift          screencapture wrapper, file storage, clipboard
+  RecordingPicker.swift  area / window / screen picker overlay for recordings
+  RecordingController.swift  runs a recording: countdown, controls, menu bar timer, delivery
+  ScreenRecorder.swift   ScreenCaptureKit stream → AVAssetWriter, with pause and resume
+  MediaExport.swift      GIF encoding, trimmed export, audio mixdown, poster frames
+  VideoEditor.swift      trim / mute / convert window for recordings
   HotKeyCenter.swift     global shortcuts via Carbon hot keys
   Shortcut.swift         shortcut model + key names
   Preview.swift          floating glass preview panels + stacking
@@ -149,7 +187,7 @@ npm run audio    # just the soundtrack → promo/build/promo-audio.wav
 npm run render   # soundtrack + video → docs/assets/promo.mp4 + promo-poster.jpg (1080p60, AAC)
 ```
 
-Open `promo/promo.html` in a browser to watch it play live. The site's 1200×630 social card (`docs/assets/og.png`) is rendered from `promo/og.html` with `npm run og`.
+Open `promo/promo.html` in a browser to watch it play live. The site's 1200×630 social card (`docs/assets/og.png`) is rendered from `promo/og.html` with `npm run og`, and the recording illustration (`docs/assets/record.jpg`) from `promo/record.html` with `npm run record`.
 
 ## License
 

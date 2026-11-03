@@ -63,8 +63,29 @@ enum CaptureStorage {
         return dir
     }
 
-    static func newCaptureURL() -> URL {
-        uniqueURL(in: cacheDirectory, baseName: fileBaseName(for: Date()))
+    /// The full-quality videos GIF recordings are made from, kept so a GIF can be trimmed and remade later.
+    static var recordingSourcesDirectory: URL {
+        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        let dir = base.appendingPathComponent("dev.nearby.Snaps/Recording Sources", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    static func newCaptureURL(_ kind: CaptureKind = .image) -> URL {
+        let prefix = kind == .image ? "Snap" : "Snap Recording"
+        return uniqueURL(in: cacheDirectory, baseName: fileBaseName(for: Date(), prefix: prefix), pathExtension: kind.pathExtension)
+    }
+
+    static func newRecordingSourceURL() -> URL {
+        recordingSourcesDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mp4")
+    }
+
+    /// A scratch file for writing a result before it replaces `target`, on the same volume so the swap works.
+    static func temporaryURL(pathExtension: String, replacing target: URL? = nil) -> URL {
+        let directory = target.flatMap {
+            try? FileManager.default.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: $0, create: true)
+        } ?? cacheDirectory
+        return directory.appendingPathComponent(".\(UUID().uuidString)").appendingPathExtension(pathExtension)
     }
 
     static func isInCache(_ url: URL) -> Bool {
@@ -75,37 +96,39 @@ enum CaptureStorage {
     static func save(_ url: URL, into folder: URL) throws -> URL {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let baseName = url.deletingPathExtension().lastPathComponent
-        let destination = uniqueURL(in: folder, baseName: baseName)
+        let destination = uniqueURL(in: folder, baseName: baseName, pathExtension: url.pathExtension)
         try FileManager.default.copyItem(at: url, to: destination)
         return destination
     }
 
-    /// Removes cached (unsaved) captures older than a week.
+    /// Removes cached (unsaved) captures and GIF sources older than a week.
     static func pruneCache(olderThan age: TimeInterval = 7 * 24 * 60 * 60) {
         let fm = FileManager.default
-        guard let files = try? fm.contentsOfDirectory(
-            at: cacheDirectory,
-            includingPropertiesForKeys: [.creationDateKey]
-        ) else { return }
         let cutoff = Date().addingTimeInterval(-age)
-        for file in files {
-            let created = (try? file.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
-            if created < cutoff { try? fm.removeItem(at: file) }
+        for directory in [cacheDirectory, recordingSourcesDirectory] {
+            guard let files = try? fm.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: [.creationDateKey]
+            ) else { continue }
+            for file in files {
+                let created = (try? file.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
+                if created < cutoff { try? fm.removeItem(at: file) }
+            }
         }
     }
 
-    private static func fileBaseName(for date: Date) -> String {
+    private static func fileBaseName(for date: Date, prefix: String) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
-        return "Snap \(formatter.string(from: date))"
+        return "\(prefix) \(formatter.string(from: date))"
     }
 
-    private static func uniqueURL(in folder: URL, baseName: String) -> URL {
-        var candidate = folder.appendingPathComponent(baseName).appendingPathExtension("png")
+    private static func uniqueURL(in folder: URL, baseName: String, pathExtension: String) -> URL {
+        var candidate = folder.appendingPathComponent(baseName).appendingPathExtension(pathExtension)
         var index = 2
         while FileManager.default.fileExists(atPath: candidate.path) {
-            candidate = folder.appendingPathComponent("\(baseName) (\(index))").appendingPathExtension("png")
+            candidate = folder.appendingPathComponent("\(baseName) (\(index))").appendingPathExtension(pathExtension)
             index += 1
         }
         return candidate
@@ -113,6 +136,33 @@ enum CaptureStorage {
 }
 
 enum Clipboard {
+    /// Copies whatever kind of capture lives at `url`. Returns false if it couldn't be read.
+    @discardableResult
+    static func copy(contentsOf url: URL) -> Bool {
+        switch CaptureKind(url) {
+        case .image:
+            guard let image = NSImage(contentsOf: url) else { return false }
+            copy(image: image, pngURL: url)
+        case .video, .gif:
+            guard FileManager.default.fileExists(atPath: url.path) else { return false }
+            copy(fileAt: url)
+        }
+        return true
+    }
+
+    /// Puts a recording on the pasteboard as a file, so it pastes into Finder, Slack, Mail and so on.
+    /// GIFs also carry their data, so apps that take images paste them inline and animated.
+    static func copy(fileAt url: URL) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        let item = NSPasteboardItem()
+        item.setString(url.absoluteString, forType: .fileURL)
+        if CaptureKind(url) == .gif, let data = try? Data(contentsOf: url) {
+            item.setData(data, forType: NSPasteboard.PasteboardType("com.compuserve.gif"))
+        }
+        pasteboard.writeObjects([item])
+    }
+
     /// Puts the image on the general pasteboard as PNG, with TIFF provided lazily for older apps.
     static func copy(image: NSImage, pngURL: URL) {
         let pasteboard = NSPasteboard.general

@@ -9,7 +9,8 @@
     "dmg-background": "node render-dmg-background.mjs",
     "dmg-preview": "node render-dmg-background.mjs --preview",
     "audio": "node audio.mjs",
-    "og": "node render-og.mjs"
+    "og": "node render-og.mjs",
+    "record": "node render-record.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.56.0"

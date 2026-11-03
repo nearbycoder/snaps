@@ -8,6 +8,7 @@ final class AppCoordinator {
     private let previews = PreviewManager()
     private let gallery = GalleryController()
     private let settingsWindow = SettingsWindowController()
+    private lazy var recording = RecordingController(previews: previews)
     private var statusBar: StatusBarController?
     private var cancellables = Set<AnyCancellable>()
     private var isCapturing = false
@@ -18,9 +19,15 @@ final class AppCoordinator {
 
         statusBar = StatusBarController(
             onCapture: { [weak self] mode in self?.capture(mode) },
+            onRecord: { [weak self] format in self?.record(format) },
             onGallery: { [weak self] in self?.toggleGallery() },
             onSettings: { [weak self] in self?.showSettings() }
         )
+        statusBar?.onRecordingClick = { [weak self] in self?.recording.toggle(.video) }
+        recording.onStatusChange = { [weak self] status in self?.statusBar?.setRecordingStatus(status) }
+        VideoEditor.shared.onNewRecording = { [weak self] url, poster, info in
+            self?.previews.show(image: poster, fileURL: url, recording: info)
+        }
 
         Publishers.CombineLatest(settings.$shortcuts, state.$isRecordingShortcut)
             .sink { [weak self] shortcuts, isRecording in
@@ -60,8 +67,18 @@ final class AppCoordinator {
         gallery.toggle()
     }
 
+    /// Starts recording, or stops the recording in progress.
+    func record(_ format: RecordingFormat) {
+        // The picker takes focus itself and hands it back afterwards; activating the old app now would race it.
+        let returnTo = statusBar?.appBeforePopover
+        statusBar?.closePopover(restoreFocus: false)
+        gallery.hide()
+        recording.toggle(format, returnTo: returnTo)
+    }
+
     func capture(_ mode: CaptureMode) {
-        guard !isCapturing else { return }
+        // Screenshots are fine mid-recording, but not over the picker or the countdown.
+        guard !isCapturing, recording.phase == .idle || recording.phase == .recording else { return }
         isCapturing = true
         statusBar?.closePopover(restoreFocus: true)
         gallery.hide()
@@ -101,6 +118,8 @@ final class AppCoordinator {
     private func perform(_ action: ShortcutAction) {
         if let mode = action.captureMode {
             capture(mode)
+        } else if let format = action.recordingFormat {
+            record(format)
         } else {
             toggleGallery()
         }

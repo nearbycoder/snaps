@@ -17,11 +17,11 @@ final class PreviewManager {
     }
 
     @discardableResult
-    func show(image: NSImage, fileURL: URL) -> PreviewController {
+    func show(image: NSImage, fileURL: URL, recording: RecordingInfo? = nil) -> PreviewController {
         screen = NSScreen.underMouse
         follower.start(on: screen)
 
-        let controller = PreviewController(image: image, fileURL: fileURL)
+        let controller = PreviewController(image: image, fileURL: fileURL, recording: recording)
         controller.onDismiss = { [weak self, weak controller] in
             guard let self, let controller else { return }
             self.items.removeAll { $0 === controller }
@@ -84,13 +84,20 @@ final class PreviewModel: ObservableObject {
     @Published var isHovering = false
     @Published var isPinned = false
     @Published var toast: String?
+    @Published var recording: RecordingInfo?
+    /// Bumped when the file's contents change in place, so an animated GIF reloads.
+    @Published var revision = 0
 
-    init(image: NSImage, fileURL: URL) {
+    init(image: NSImage, fileURL: URL, recording: RecordingInfo?) {
         self.image = image
         self.fileURL = fileURL
+        self.recording = recording
     }
 
     var isSaved: Bool { !CaptureStorage.isInCache(fileURL) }
+    var kind: CaptureKind { CaptureKind(fileURL) }
+    /// Screenshots open in the annotation editor, recordings in the video editor; a GIF needs its source video.
+    var canEdit: Bool { kind != .gif || recording?.source != nil }
 }
 
 @MainActor
@@ -111,9 +118,9 @@ final class PreviewController {
     private var toastTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
 
-    init(image: NSImage, fileURL: URL) {
-        model = PreviewModel(image: image, fileURL: fileURL)
-        let layout = Self.layout(for: image.size)
+    init(image: NSImage, fileURL: URL, recording: RecordingInfo? = nil) {
+        model = PreviewModel(image: image, fileURL: fileURL, recording: recording)
+        let layout = Self.layout(for: recording?.pointSize ?? image.size)
         size = layout.card
         panel = GlassPanel(contentSize: layout.card)
 
@@ -146,6 +153,15 @@ final class PreviewController {
             .sink { [weak self] update in
                 guard let self, update.url == self.model.fileURL else { return }
                 self.model.image = update.image
+            }
+            .store(in: &cancellables)
+
+        VideoEditor.shared.didUpdate
+            .sink { [weak self] update in
+                guard let self, update.url == self.model.fileURL else { return }
+                self.model.image = update.poster
+                self.model.recording?.duration = update.duration
+                self.model.revision += 1
             }
             .store(in: &cancellables)
     }
@@ -254,7 +270,11 @@ final class PreviewController {
     }
 
     private func copyAgain() {
-        Clipboard.copy(image: model.image, pngURL: model.fileURL)
+        if model.kind.isRecording {
+            Clipboard.copy(fileAt: model.fileURL)
+        } else {
+            Clipboard.copy(image: model.image, pngURL: model.fileURL)
+        }
         showToast("Copied")
     }
 
@@ -280,16 +300,29 @@ final class PreviewController {
 
     /// Opens the capture in the editor. The preview stays put meanwhile and shows the result when it closes.
     func annotate() {
-        let opened = AnnotationEditor.shared.open(
-            model.fileURL,
-            target: { [weak model] in model?.fileURL },
-            onClose: { [weak self] copied in
-                guard let self else { return }
-                self.isEditing = false
-                if copied { self.showToast("Copied") }
-                self.scheduleTimer()
-            }
-        )
+        guard model.canEdit else { return }
+        let onClose: (Bool) -> Void = { [weak self] copied in
+            guard let self else { return }
+            self.isEditing = false
+            if copied { self.showToast("Copied") }
+            self.scheduleTimer()
+        }
+        let opened: Bool
+        if let recording = model.recording, model.kind.isRecording {
+            opened = VideoEditor.shared.open(
+                model.fileURL,
+                source: recording.source,
+                pointSize: recording.pointSize,
+                target: { [weak model] in model?.fileURL },
+                onClose: onClose
+            )
+        } else {
+            opened = AnnotationEditor.shared.open(
+                model.fileURL,
+                target: { [weak model] in model?.fileURL },
+                onClose: onClose
+            )
+        }
         if opened {
             isEditing = true
             cancelTimer()
