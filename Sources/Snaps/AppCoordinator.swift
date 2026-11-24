@@ -48,6 +48,15 @@ final class AppCoordinator {
             .store(in: &cancellables)
 
         // Captures kept nowhere else go away once nothing on screen shows them.
+        CaptureHistory.shared.didSave
+            .sink { move in AnnotationEditor.shared.relocate(from: move.old, to: move.new) }
+            .store(in: &cancellables)
+        CaptureHistory.shared.didDelete
+            .sink { [weak self] url in
+                AnnotationEditor.shared.forget(url)
+                self?.previews.dismiss(showing: url)
+            }
+            .store(in: &cancellables)
         previews.onRelease = { [weak self] url in self?.discardWhenUnused(url) }
         AnnotationEditor.shared.didClose
             .sink { [weak self] url in self?.discardWhenUnused(url) }
@@ -71,7 +80,7 @@ final class AppCoordinator {
 
     func toggleGallery() {
         // Not over the screenshot picker, where an area drag could catch it.
-        guard !isCapturing else { return }
+        guard !isCapturing, recording.phase != .picking else { return }
         statusBar?.closePopover(restoreFocus: true)
         gallery.toggle()
     }
@@ -109,6 +118,11 @@ final class AppCoordinator {
                 try? await Task.sleep(for: .milliseconds(150))
             }
 
+            if galleryWasOpen {
+                // The fade must finish before the loupe snapshots the display.
+                try? await Task.sleep(for: .milliseconds(240))
+            }
+
             let target: CaptureTarget?
             switch mode {
             case .area, .window:
@@ -118,10 +132,7 @@ final class AppCoordinator {
                     try? await Task.sleep(for: .milliseconds(80))
                 }
             case .screen:
-                if galleryWasOpen {
-                    // The gallery takes 0.2 s to fade out.
-                    try? await Task.sleep(for: .milliseconds(240))
-                } else if !hadPopover {
+                if !hadPopover && !galleryWasOpen {
                     // Same for hidden previews.
                     try? await Task.sleep(for: .milliseconds(80))
                 }
@@ -132,7 +143,7 @@ final class AppCoordinator {
                 previews.setHidden(false)
                 return
             }
-            let captured = await ScreenCapturer.capture(target, settings: settings)
+            let captured = await ScreenCapturer.capture(target, settings: settings, silent: recording.phase == .recording)
             previews.setHidden(false)
 
             guard var url = captured, let image = NSImage(contentsOf: url) else {
@@ -140,28 +151,32 @@ final class AppCoordinator {
                 return
             }
 
+            var saveFailed = false
             if settings.saveToFolder {
                 do {
-                    url = try CaptureStorage.save(url, into: settings.saveFolder)
+                    let saved = try CaptureStorage.save(url, into: settings.saveFolder)
+                    try? FileManager.default.removeItem(at: url)
+                    url = saved
                 } catch {
+                    saveFailed = true
                     NSLog("Snaps: failed to save capture: \(error)")
                 }
             }
             if settings.copyToClipboard {
                 Clipboard.copy(image: image, pngURL: url)
             }
-            let item = settings.keepInGallery ? CaptureHistory.shared.add(url: url, size: image.size) : nil
+            if settings.keepInGallery { CaptureHistory.shared.add(url: url, size: image.size) }
 
             let preview = settings.showPreview ? previews.show(image: image, fileURL: url) : nil
+            if saveFailed {
+                if let preview { preview.showToast("Couldn’t save to folder", symbol: "exclamationmark.triangle") }
+                else { NSSound.beep() }
+            }
             if settings.openEditorAfterCapture {
                 if let preview {
                     preview.annotate()
                 } else {
-                    let captureURL = url
-                    AnnotationEditor.shared.open(url, target: {
-                        guard let item else { return captureURL }
-                        return CaptureHistory.shared.items.first { $0.id == item.id }?.url
-                    })
+                    AnnotationEditor.shared.open(url)
                 }
             }
             discardWhenUnused(url)

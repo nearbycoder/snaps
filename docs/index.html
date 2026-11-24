@@ -120,7 +120,7 @@
       font: 700 14px var(--rounded); color: white; cursor: pointer; border: 1px solid rgba(255,255,255,0.35);
       background: rgba(10, 14, 40, 0.45); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); transition: opacity .3s ease, transform .15s ease; }
     .sound:hover { transform: translateY(-1px); }
-    .sound.hidden { opacity: 0; pointer-events: none; }
+    .sound[hidden] { display: none; }
 
     /* Sections */
     section { padding: 110px 0 0; }
@@ -244,8 +244,8 @@
     footer a:hover { color: var(--text); }
 
     /* Reveal on scroll */
-    .reveal { opacity: 0; transform: translateY(24px); transition: opacity .8s ease, transform .8s cubic-bezier(.2,.8,.2,1); }
-    .reveal.in { opacity: 1; transform: none; }
+    .reveal { transition: opacity .8s ease, transform .8s cubic-bezier(.2,.8,.2,1); }
+    .reveal.waiting { opacity: 0; transform: translateY(24px); }
 
     @media (max-width: 900px) {
       .nav-links { display: none; }
@@ -260,7 +260,8 @@
     }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
-      .reveal { opacity: 1; transform: none; }
+      html { scroll-behavior: auto; }
+      .reveal.waiting { opacity: 1; transform: none; }
     }
   </style>
 </head>
@@ -300,7 +301,7 @@
       </a>
     </div>
     <div class="meta">
-      <span>✓ 100% free</span><span>✓ Signed &amp; notarized</span><span>✓ Apple silicon &amp; Intel</span><span class="js-version">✓ ~2 MB</span>
+      <span>✓ 100% free</span><span>✓ Signed &amp; notarized</span><span>✓ Apple silicon &amp; Intel</span><span class="js-version">✓ v1.2.2</span>
     </div>
 
     <div class="video-frame glass reveal">
@@ -308,7 +309,7 @@
       <div class="media">
         <video id="promo" src="assets/promo.mp4?v=6c1fbfe82f" poster="assets/promo-poster.jpg?v=4c23004633" autoplay muted loop playsinline controls preload="metadata"
           aria-label="Promo video showing installing Snaps, allowing Screen Recording, an area capture, pasting into a chat, dragging a window capture, annotating a capture, choosing the preview corner, the gallery, and recording part of the screen"></video>
-        <button class="sound" id="soundOn" type="button" aria-label="Turn sound on">
+        <button class="sound" id="soundOn" type="button" hidden aria-label="Turn sound on">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5h3.5L12 5v14l-4.5-4.5H4z"/><path d="M15.5 9a4.5 4.5 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>
           Sound on
         </button>
@@ -373,7 +374,7 @@
         <ul class="tools">
           <li><kbd>A</kbd><div><b>Arrows</b>Drag from tail to tip. Shift snaps to 45°.</div></li>
           <li><kbd>T</kbd><div><b>Text</b>Click and type. Seven colors, three sizes.</div></li>
-          <li><kbd>B</kbd><div><b>Blur</b>Pixelated, then softened, so it can't be recovered.</div></li>
+          <li><kbd>B</kbd><div><b>Blur</b>Drag to pixelate and soften an area of the exported image.</div></li>
           <li><kbd>⌘↩</kbd><div><b>Done</b>Saves at full resolution and copies it. ⌘Z undoes.</div></li>
         </ul>
         <p class="credit">The editor was contributed by <a href="https://github.com/lafraia">@lafraia</a> in <a href="https://github.com/nearbycoder/snaps/pull/1">#1</a>.</p>
@@ -390,11 +391,11 @@
         <img src="assets/record.jpg" width="1200" height="700" loading="lazy" alt="A board app being recorded: a dashed outline around it, a click ring under the pointer, glass recording controls with a 0:12 timer, pause, start over, discard and stop, a red timer in the menu bar, and a GIF preview marked Copied in the corner">
       </div>
       <div class="copy reveal">
-        <div class="kicker">New in 1.1</div>
+        <div class="kicker">Screen recording</div>
         <h2>Show it moving. Video or GIF.</h2>
         <p>Drag out an area, click a screen, or press Space and pick a window. Snaps counts you in, records, and drops the result in your corner, already on your clipboard. Snaps' own windows never show up in the recording.</p>
         <ul class="tools">
-          <li><kbd>⌃⇧6</kbd><div><b>Video</b>MP4 at 30 or 60 fps, with your mic and computer audio if you want them.</div></li>
+          <li><kbd>⌃⇧6</kbd><div><b>Video</b>Record an MP4 at 30 or 60 fps. Mix your voice with computer audio in one track. Both stay in sync when you pause and resume.</div></li>
           <li><kbd>⌃⇧7</kbd><div><b>GIF</b>Small, looping and ready for chats, docs and pull requests.</div></li>
           <li><kbd>❚❚</kbd><div><b>Pause, start over, stop</b>Glass controls float beside the area. The menu bar shows the time.</div></li>
           <li><kbd>✂︎</kbd><div><b>Trim</b>Double-click a recording to trim it, drop the sound, or save it as a GIF.</div></li>
@@ -507,13 +508,13 @@
       <details class="glass reveal"><summary>Is it really free?</summary>
         <p>Yes. Snaps is free and open source under the MIT license. There are no paid features, no accounts and nothing to upgrade to.</p></details>
       <details class="glass reveal"><summary>Which Macs does it run on?</summary>
-        <p>Any Mac running macOS 26 or later, Apple silicon or Intel. It's a universal app of about 2 MB.</p></details>
+        <p>Any Mac running macOS 26 or later, Apple silicon or Intel. The same download works on both.</p></details>
       <details class="glass reveal"><summary>Why does it ask for Screen Recording permission?</summary>
         <p>macOS requires it for any app that captures the screen. Allow Snaps in System Settings → Privacy &amp; Security → Screen &amp; System Audio Recording, then relaunch it. Snaps only looks at your screen when you take a screenshot or start a recording, and never sends anything anywhere.</p></details>
       <details class="glass reveal"><summary>Is it safe to install?</summary>
         <p>Every release is signed with an Apple Developer ID and notarized by Apple, so it opens without Gatekeeper warnings. The full source is on GitHub if you'd like to check it, or build it yourself.</p></details>
       <details class="glass reveal"><summary>Where do my captures go?</summary>
-        <p>To your clipboard, always. Unsaved captures live in a private cache for 7 days so the gallery can show them. Turn on <b>Save to folder</b> in Settings to keep a copy on your Desktop or any folder you choose.</p></details>
+        <p>By default, Snaps copies each capture to your clipboard and keeps recent captures in the gallery. In Settings, turn on <b>Save to folder</b> to keep a file on your Desktop or in a folder you choose. You can also turn off <b>Copy to clipboard</b> or <b>Keep in the gallery</b>.</p></details>
       <details class="glass reveal"><summary>Can I annotate a screenshot?</summary>
         <p>Yes. Double-click the floating preview or a gallery card, or click its pencil button, to add arrows, text and blur. Done saves the annotations into the capture and copies it. To open every capture in the editor automatically, turn on <b>Open in the editor</b> in Settings.</p></details>
       <details class="glass reveal"><summary>Can it record video or GIFs?</summary>
@@ -568,21 +569,31 @@
       .catch(() => {});
 
     // Fade sections in as they scroll into view.
-    const io = new IntersectionObserver((entries) => {
-      for (const e of entries) if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
-    }, { threshold: 0.12 });
-    document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
+    if ("IntersectionObserver" in window) {
+      const io = new IntersectionObserver((entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            entry.target.classList.remove("waiting");
+            io.unobserve(entry.target);
+          }
+        }
+      });
+      document.querySelectorAll(".reveal").forEach((section) => {
+        section.classList.add("waiting");
+        io.observe(section);
+      });
+    }
 
     // Autoplay has to start muted; offer sound with one click (from the start, so it lines up).
     const promo = document.getElementById("promo");
     const soundOn = document.getElementById("soundOn");
+    soundOn.hidden = !promo.muted;
     soundOn.addEventListener("click", () => {
       promo.muted = false;
       promo.currentTime = 0;
       promo.play();
-      soundOn.classList.add("hidden");
     });
-    promo.addEventListener("volumechange", () => soundOn.classList.toggle("hidden", !promo.muted));
+    promo.addEventListener("volumechange", () => { soundOn.hidden = !promo.muted; });
 
     // Respect reduced motion for the promo video.
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) {

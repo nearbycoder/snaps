@@ -54,7 +54,10 @@ final class AnnotationCanvasView: NSView, NSTextViewDelegate {
         model.onDisplay = { [weak self] in self?.overlay.needsDisplay = true }
         model.onToolChange = { [weak self] in self?.toolChanged() }
         model.onStyleChange = { [weak self] in self?.restyleText() ?? false }
-        model.onFinishEditing = { [weak self] in self?.commitText() }
+        model.onFinishEditing = { [weak self] in
+            self?.finishDrag()
+            self?.commitText()
+        }
     }
 
     @available(*, unavailable)
@@ -242,6 +245,10 @@ final class AnnotationCanvasView: NSView, NSTextViewDelegate {
             }
         }
 
+        guard imageRect.contains(point) else {
+            model.select(nil)
+            return
+        }
         switch model.tool {
         case .select:
             if let hit = topmost(at: location) {
@@ -314,6 +321,11 @@ final class AnnotationCanvasView: NSView, NSTextViewDelegate {
     }
 
     override func mouseUp(with event: NSEvent) {
+        finishDrag(editOnClick: true)
+        cursor(at: convert(event.locationInWindow, from: nil)).set()
+    }
+
+    private func finishDrag(editOnClick: Bool = false) {
         guard let finished = interaction else { return }
         interaction = nil
 
@@ -327,13 +339,15 @@ final class AnnotationCanvasView: NSView, NSTextViewDelegate {
             model.endChange()
         case let .moving(id, _, original):
             model.endChange()
-            if model.tool == .text, original.kind == .text, model.annotation(id) == original {
+            if editOnClick, model.tool == .text, original.kind == .text, model.annotation(id) == original {
                 beginEditing(original)
             }
-        case .resizing:
+        case let .resizing(id, _, original):
+            if let annotation = model.annotation(id), isTooSmall(annotation) {
+                model.update(id) { $0 = original }
+            }
             model.endChange()
         }
-        cursor(at: convert(event.locationInWindow, from: nil)).set()
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
@@ -425,6 +439,7 @@ final class AnnotationCanvasView: NSView, NSTextViewDelegate {
     }
 
     private func toolChanged() {
+        finishDrag()
         commitText()
         if let window {
             cursor(at: convert(window.mouseLocationOutsideOfEventStream, from: nil)).set()

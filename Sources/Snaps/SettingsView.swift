@@ -3,8 +3,12 @@ import Carbon.HIToolbox
 import SwiftUI
 
 @MainActor
-final class SettingsWindowController {
+final class SettingsWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
+
+    func windowDidResignKey(_ notification: Notification) {
+        ShortcutRecorderModel.active?.stop()
+    }
 
     func show() {
         if window == nil {
@@ -20,6 +24,7 @@ final class SettingsWindowController {
             window.isOpaque = false
             window.backgroundColor = .clear
             window.isReleasedWhenClosed = false
+            window.delegate = self
             window.center()
             self.window = window
         }
@@ -44,20 +49,27 @@ struct SettingsView: View {
             TabSwitch(selection: $state.settingsTab)
 
             // Every tab is laid out, so the window stays the size of the tallest instead of jumping.
-            ZStack(alignment: .top) {
-                ForEach(SettingsTab.allCases) { tab in
-                    let selected = tab == state.settingsTab
-                    page(tab)
-                        .opacity(selected ? 1 : 0)
-                        .allowsHitTesting(selected)
-                        .accessibilityHidden(!selected)
+            ScrollView {
+                ZStack(alignment: .top) {
+                    ForEach(SettingsTab.allCases) { tab in
+                        let selected = tab == state.settingsTab
+                        page(tab)
+                            .opacity(selected ? 1 : 0)
+                            .disabled(!selected)
+                            .allowsHitTesting(selected)
+                            .accessibilityHidden(!selected)
+                    }
                 }
+                .padding(4)
             }
+            .scrollBounceBehavior(.basedOnSize)
+            .onChange(of: state.settingsTab) { _, _ in ShortcutRecorderModel.active?.stop() }
         }
         .padding(.horizontal, 24)
         .padding(.top, 40)
         .padding(.bottom, 24)
         .frame(width: 500)
+        .frame(maxHeight: (NSScreen.main?.visibleFrame.height ?? 840) - 32)
         .fixedSize(horizontal: false, vertical: true)
         .background {
             VisualEffectBackground().ignoresSafeArea()
@@ -156,7 +168,9 @@ struct SettingsView: View {
                 )
                 SettingToggle(
                     "Record microphone",
-                    detail: "Snaps asks for access the first time.",
+                    detail: settings.recordMicrophone && settings.recordSystemAudio
+                        ? "Use headphones to keep speaker playback out of the microphone."
+                        : "Snaps asks for access the first time.",
                     isOn: $settings.recordMicrophone
                 )
                 Text("GIFs never have sound. You can also flip both switches in the bar under the selection.")
@@ -463,11 +477,13 @@ struct ShortcutRecorder: View {
 /// Captures the next key combo typed while the settings window is focused.
 @MainActor
 final class ShortcutRecorderModel: ObservableObject {
+    private(set) static weak var active: ShortcutRecorderModel?
     @Published private(set) var isRecording = false
     private var monitor: Any?
 
     func start(onRecord: @escaping (Shortcut?) -> Void) {
-        stop()
+        Self.active?.stop()
+        Self.active = self
         isRecording = true
         AppState.shared.isRecordingShortcut = true
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -481,6 +497,7 @@ final class ShortcutRecorderModel: ObservableObject {
             NSEvent.removeMonitor(monitor)
         }
         monitor = nil
+        if Self.active === self { Self.active = nil }
         if isRecording {
             isRecording = false
             AppState.shared.isRecordingShortcut = false

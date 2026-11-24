@@ -51,7 +51,7 @@ struct PreviewCardView: View {
             }
 
             if let toast = model.toast {
-                Label(toast, systemImage: "checkmark")
+                Label(toast, systemImage: model.toastSymbol)
                     .font(.system(size: 12, weight: .semibold))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)

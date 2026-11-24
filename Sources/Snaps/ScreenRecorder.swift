@@ -42,6 +42,9 @@ final class ScreenRecorder: NSObject, SCStreamDelegate {
     /// Called if the system ends the stream, e.g. the recorded window closed or the user stopped sharing from the menu bar.
     var onInterrupted: ((Error) -> Void)?
 
+    /// True when the last saved recording kept separate system and microphone tracks after a mix failure.
+    private(set) var savedSeparateAudioTracks = false
+
     private var stream: SCStream?
     private var output: StreamOutput?
     private var writer: RecordingWriter?
@@ -49,6 +52,7 @@ final class ScreenRecorder: NSObject, SCStreamDelegate {
     /// Starts writing to `url`. Returns the pixel size of the recording.
     @discardableResult
     func start(_ target: RecordingTarget, options: RecordingOptions, to url: URL) async throws -> CGSize {
+        savedSeparateAudioTracks = false
         // All windows, not just on-screen ones, so Snaps is listed (and excluded) even with nothing of its own showing.
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
         let me = ProcessInfo.processInfo.processIdentifier
@@ -142,11 +146,16 @@ final class ScreenRecorder: NSObject, SCStreamDelegate {
         let end = Self.now
         guard let writer else { throw RecordingError.noFrames }
         await stopStream()
-        let url = try await writer.finish(at: end)
         self.writer = nil
+        let url = try await writer.finish(at: end)
         if writer.hasSystemAudio && writer.hasMicrophone {
             // Two audio tracks play as one only in some apps, so mix them into one.
-            try? await MediaExport.mixAudioTracks(url)
+            do {
+                try await MediaExport.mixAudioTracks(url)
+            } catch {
+                savedSeparateAudioTracks = true
+                NSLog("Snaps: couldn't mix the recording's audio tracks: \(error)")
+            }
         }
         return url
     }
@@ -216,13 +225,17 @@ final class RecordingWriter: @unchecked Sendable {
 
     private let writer: AVAssetWriter
     private let videoInput: AVAssetWriterInput
-    private let systemAudioInput: AVAssetWriterInput?
-    private let microphoneInput: AVAssetWriterInput?
+    private let systemAudio: AudioTrack?
+    private let microphone: AudioTrack?
+
+    private let frameDuration: CMTime
 
     private var sessionStart: CMTime?
     private var lastVideoTime: CMTime?
-    /// Where each audio track's written samples end; anything starting earlier would overlap.
-    private var audioEnd: [Bool: CMTime] = [:]
+    /// The last frame written. A still screen delivers no frames, so this is what is on screen until the next one.
+    private var lastFrame: CMSampleBuffer?
+    /// The latest frame that arrived while paused, for the picture to pick up from when recording resumes.
+    private var pausedFrame: CMSampleBuffer?
     /// Paused stretches in host time; the last one is open while paused.
     private var pauses: [(start: CMTime, end: CMTime?)] = []
     private var isFinished = false
@@ -231,6 +244,7 @@ final class RecordingWriter: @unchecked Sendable {
         self.url = url
         hasSystemAudio = systemAudio
         hasMicrophone = microphone
+        frameDuration = CMTime(value: 1, timescale: CMTimeScale(frameRate))
         try? FileManager.default.removeItem(at: url)
         writer = try AVAssetWriter(outputURL: url, fileType: .mp4)
         writer.shouldOptimizeForNetworkUse = true
@@ -263,8 +277,8 @@ final class RecordingWriter: @unchecked Sendable {
         guard writer.canAdd(videoInput) else { throw RecordingError.cannotWrite }
         writer.add(videoInput)
 
-        systemAudioInput = systemAudio ? try Self.addAudioInput(to: writer) : nil
-        microphoneInput = microphone ? try Self.addAudioInput(to: writer) : nil
+        self.systemAudio = systemAudio ? AudioTrack(input: try Self.addAudioInput(to: writer)) : nil
+        self.microphone = microphone ? AudioTrack(input: try Self.addAudioInput(to: writer)) : nil
 
         guard writer.startWriting() else { throw writer.error ?? RecordingError.cannotWrite }
     }
@@ -288,34 +302,78 @@ final class RecordingWriter: @unchecked Sendable {
     func appendVideo(_ buffer: CMSampleBuffer) {
         guard !isFinished, writer.status == .writing else { return }
         let time = CMSampleBufferGetPresentationTimeStamp(buffer)
-        guard let adjusted = adjusted(time) else { return }
+        guard let adjusted = adjusted(time) else {
+            guard let pause = pauses.last, time >= pause.start else { return }
+            if let end = pause.end, let resumed = adjusted(end) {
+                // Delivery may trail the resume click. A later video frame already written takes precedence.
+                if sessionStart != nil { show(buffer, at: resumed) }
+            } else {
+                pausedFrame = buffer
+            }
+            return
+        }
         if sessionStart == nil {
             writer.startSession(atSourceTime: adjusted)
             sessionStart = adjusted
         }
-        if let lastVideoTime, adjusted <= lastVideoTime { return }
-        guard videoInput.isReadyForMoreMediaData, let retimed = retime(buffer, to: adjusted) else { return }
+        show(buffer, at: adjusted)
+    }
+
+    /// Writes `frame` at `time` on the movie's timeline, if that is after the last one written.
+    private func show(_ frame: CMSampleBuffer, at time: CMTime) {
+        if let lastVideoTime, time <= lastVideoTime { return }
+        guard videoInput.isReadyForMoreMediaData, let retimed = retimed(frame, to: time) else { return }
         if videoInput.append(retimed) {
-            lastVideoTime = adjusted
+            lastVideoTime = time
+            lastFrame = frame
         }
     }
 
     func appendAudio(_ buffer: CMSampleBuffer, microphone: Bool) {
         guard !isFinished, writer.status == .writing,
-              let input = microphone ? microphoneInput : systemAudioInput,
+              let track = microphone ? self.microphone : systemAudio,
               let sessionStart
         else { return }
-        let time = CMSampleBufferGetPresentationTimeStamp(buffer)
-        // Around a pause, buffers can straddle the cut; overlapping audio would fail the whole file.
-        guard let adjusted = adjusted(time), adjusted >= sessionStart,
-              adjusted >= audioEnd[microphone] ?? sessionStart,
-              input.isReadyForMoreMediaData,
-              let retimed = retime(buffer, to: adjusted)
-        else { return }
-        if input.append(retimed) {
-            let duration = CMSampleBufferGetDuration(buffer)
-            audioEnd[microphone] = duration.isValid ? adjusted + duration : adjusted
+        guard let time = track.hostTime(of: buffer) else { return }
+        let duration = CMSampleBufferGetDuration(buffer)
+        if pauses.isEmpty || (duration.isNumeric && time + duration <= pauses[0].start) {
+            track.append(buffer, at: time, sessionStart: sessionStart)
+            return
         }
+
+        // A buffer can straddle either edge of a pause. Retain only the samples outside it.
+        let count = CMSampleBufferGetNumSamples(buffer)
+        guard count > 0, let format = CMSampleBufferGetFormatDescription(buffer),
+              let rate = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee.mSampleRate, rate > 0
+        else { return }
+        func frame(at boundary: CMTime) -> Int {
+            Int(min(Double(count), max(0, ((boundary - time).seconds * rate).rounded(.up))))
+        }
+        func append(_ interval: Range<Int>, after offset: CMTime) {
+            guard !interval.isEmpty else { return }
+            let start = time + CMTime(value: Int64(interval.lowerBound), timescale: CMTimeScale(rate)) - offset
+            if interval.count == count {
+                track.append(buffer, at: start, sessionStart: sessionStart)
+            } else if let samples = audioPiece(like: buffer, from: interval.lowerBound, count: interval.count, at: start) {
+                track.append(samples, at: start, sessionStart: sessionStart)
+            }
+        }
+
+        var first = 0
+        var offset = CMTime.zero
+        for pause in pauses {
+            let cut = frame(at: pause.start)
+            append(first..<cut, after: offset)
+            if cut == count { return }
+            guard let resumed = pause.end else {
+                track.isBroken = true
+                return
+            }
+            first = frame(at: resumed)
+            if first > cut { track.isBroken = true }
+            offset = offset + (resumed - pause.start)
+        }
+        append(first..<count, after: offset)
     }
 
     // MARK: Control
@@ -331,6 +389,12 @@ final class RecordingWriter: @unchecked Sendable {
         queue.async {
             guard let last = self.pauses.indices.last, self.pauses[last].end == nil else { return }
             self.pauses[last].end = time
+            // If the screen changed while paused and stands still now, no new frame comes: show the latest one.
+            if let frame = self.pausedFrame, self.sessionStart != nil, self.writer.status == .writing,
+               let resumed = self.adjusted(time) {
+                self.show(frame, at: resumed)
+            }
+            self.pausedFrame = nil
         }
     }
 
@@ -350,9 +414,14 @@ final class RecordingWriter: @unchecked Sendable {
                 if let last = self.lastVideoTime { endTime = max(endTime, last) }
                 endTime = max(endTime, sessionStart)
 
+                // A track ends with its last frame, and a still screen delivers none: repeat the last one,
+                // so the picture lasts as long as the recording in every player.
+                if let frame = self.lastFrame {
+                    self.show(frame, at: endTime - self.frameDuration)
+                }
                 self.videoInput.markAsFinished()
-                self.systemAudioInput?.markAsFinished()
-                self.microphoneInput?.markAsFinished()
+                self.systemAudio?.input.markAsFinished()
+                self.microphone?.input.markAsFinished()
                 self.writer.endSession(atSourceTime: endTime)
                 self.writer.finishWriting {
                     if self.writer.status == .completed {
@@ -387,30 +456,212 @@ final class RecordingWriter: @unchecked Sendable {
         }
         return time - offset
     }
+}
 
-    private func retime(_ buffer: CMSampleBuffer, to time: CMTime) -> CMSampleBuffer? {
-        let original = CMSampleBufferGetPresentationTimeStamp(buffer)
-        guard original != time else { return buffer }
-        let shift = time - original
+/// A copy of `buffer` that starts at `time`, or `buffer` itself if it already does.
+private func retimed(_ buffer: CMSampleBuffer, to time: CMTime) -> CMSampleBuffer? {
+    let original = CMSampleBufferGetPresentationTimeStamp(buffer)
+    guard original != time else { return buffer }
+    let shift = time - original
 
-        var count: CMItemCount = 0
-        CMSampleBufferGetSampleTimingInfoArray(buffer, entryCount: 0, arrayToFill: nil, entriesNeededOut: &count)
-        var timing = [CMSampleTimingInfo](repeating: CMSampleTimingInfo(), count: max(count, 1))
-        CMSampleBufferGetSampleTimingInfoArray(buffer, entryCount: count, arrayToFill: &timing, entriesNeededOut: &count)
-        for index in timing.indices {
-            timing[index].presentationTimeStamp = timing[index].presentationTimeStamp + shift
-            if timing[index].decodeTimeStamp.isValid {
-                timing[index].decodeTimeStamp = timing[index].decodeTimeStamp + shift
-            }
+    var count: CMItemCount = 0
+    CMSampleBufferGetSampleTimingInfoArray(buffer, entryCount: 0, arrayToFill: nil, entriesNeededOut: &count)
+    var timing = [CMSampleTimingInfo](repeating: CMSampleTimingInfo(), count: max(count, 1))
+    CMSampleBufferGetSampleTimingInfoArray(buffer, entryCount: count, arrayToFill: &timing, entriesNeededOut: &count)
+    for index in timing.indices {
+        timing[index].presentationTimeStamp = timing[index].presentationTimeStamp + shift
+        if timing[index].decodeTimeStamp.isValid {
+            timing[index].decodeTimeStamp = timing[index].decodeTimeStamp + shift
         }
-        var copy: CMSampleBuffer?
-        CMSampleBufferCreateCopyWithNewTiming(
-            allocator: kCFAllocatorDefault,
-            sampleBuffer: buffer,
-            sampleTimingEntryCount: count,
-            sampleTimingArray: &timing,
-            sampleBufferOut: &copy
+    }
+    var copy: CMSampleBuffer?
+    CMSampleBufferCreateCopyWithNewTiming(
+        allocator: kCFAllocatorDefault,
+        sampleBuffer: buffer,
+        sampleTimingEntryCount: count,
+        sampleTimingArray: &timing,
+        sampleBufferOut: &copy
+    )
+    return copy
+}
+
+/// One audio track of a recording, kept continuous on the movie's timeline.
+///
+/// AVAssetWriter places an audio track by its first buffer and then strings the samples together, whatever
+/// their timestamps say. So a stretch that went missing (a pause, a buffer the encoder wasn't ready for, a
+/// microphone that started late or stalled) would pull everything after it earlier, out of step with the
+/// picture and with the other audio track. Here holes are filled with silence and overlaps are cut, so a
+/// sample always lands where its timestamp says.
+private final class AudioTrack {
+    let input: AVAssetWriterInput
+    /// Set when samples are known to be missing, so the next buffer is placed exactly.
+    var isBroken = true
+
+    /// Where the samples written at `rate` begin on the movie's timeline, and how many there are.
+    private var origin: CMTime?
+    private var frames: Int64 = 0
+    private var rate: Double = 0
+    /// What to add to this source's timestamps to put them on the host clock, which the picture uses.
+    private var clockOffset: CMTime?
+    private var previousBufferEnd: CMTime?
+
+    /// Timestamps this close to the end of the track count as continuing it. Devices' clocks wander a little
+    /// against the host clock; correcting every buffer would click, so wait until it adds up, then fix it in one go.
+    private static let slack = 0.02
+
+    init(input: AVAssetWriterInput) {
+        self.input = input
+    }
+
+    private var end: CMTime? {
+        origin.map { $0 + CMTime(value: frames, timescale: CMTimeScale(rate)) }
+    }
+
+    /// When `buffer` was captured, on the host clock. ScreenCaptureKit stamps what it delivers with host time;
+    /// should a source ever keep a clock of its own, its buffers are lined up by when they arrive instead.
+    func hostTime(of buffer: CMSampleBuffer) -> CMTime? {
+        let time = CMSampleBufferGetPresentationTimeStamp(buffer)
+        guard time.isNumeric else { return nil }
+        let duration = CMSampleBufferGetDuration(buffer)
+        if let previousBufferEnd, abs((time - previousBufferEnd).seconds) > 0.001 {
+            // A missing device buffer can be shorter than the allowance for long-term clock drift.
+            isBroken = true
+        }
+        previousBufferEnd = duration.isNumeric ? time + duration : nil
+        if clockOffset == nil {
+            let now = CMClockGetTime(CMClockGetHostTimeClock())
+            let isHostTime = (-1...10).contains((now - time).seconds)
+            clockOffset = isHostTime ? .zero : now - (duration.isNumeric ? duration : .zero) - time
+        }
+        return clockOffset.map { time + $0 }
+    }
+
+    func append(_ buffer: CMSampleBuffer, at start: CMTime, sessionStart: CMTime) {
+        guard let format = CMSampleBufferGetFormatDescription(buffer),
+              let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee,
+              asbd.mFormatID == kAudioFormatLinearPCM, asbd.mSampleRate >= 1, asbd.mBytesPerFrame > 0
+        else { return }
+        if asbd.mSampleRate != rate {
+            // The first buffer, or the microphone changed format: count from here at the new rate.
+            origin = end ?? sessionStart
+            frames = 0
+            rate = asbd.mSampleRate
+        }
+        let count = CMSampleBufferGetNumSamples(buffer)
+        guard let end, count > 0 else { return }
+
+        // How far the buffer starts from the end of the track: a hole if positive, an overlap if negative.
+        let distance = ((start - end).seconds * rate).rounded()
+        guard abs(distance) < rate * 86_400 else { return }
+        var offset = Int(distance)
+        if !isBroken, abs(offset) <= Int(rate * Self.slack) { offset = 0 }
+        if offset > 0 {
+            guard fill(offset, like: buffer) else { return }
+        }
+        // Samples from before the end of the track (or before the recording began) are left out.
+        let skip = max(0, -offset)
+        guard skip < count, let time = self.end else {
+            isBroken = true
+            return
+        }
+        let piece = skip == 0
+            ? retimed(buffer, to: time)
+            : audioPiece(like: buffer, from: skip, count: count - skip, at: time)
+        if write(piece, frames: count - skip) {
+            isBroken = false
+        }
+    }
+
+    /// Appends `count` frames of silence. False if the encoder couldn't take them all.
+    private func fill(_ count: Int, like buffer: CMSampleBuffer) -> Bool {
+        var left = count
+        while left > 0, let time = end {
+            let chunk = min(left, Int(rate))
+            guard write(audioPiece(like: buffer, from: nil, count: chunk, at: time), frames: chunk) else { return false }
+            left -= chunk
+        }
+        return left == 0
+    }
+
+    private func write(_ piece: CMSampleBuffer?, frames count: Int) -> Bool {
+        guard let piece, input.isReadyForMoreMediaData, input.append(piece) else {
+            // Dropped: the next buffer finds the hole and fills it.
+            isBroken = true
+            return false
+        }
+        frames += Int64(count)
+        return true
+    }
+}
+
+/// `count` frames in `model`'s format starting at `time`: `model`'s own frames from `first` on, or silence if `first` is nil.
+private func audioPiece(like model: CMSampleBuffer, from first: Int?, count: Int, at time: CMTime) -> CMSampleBuffer? {
+    guard let format = CMSampleBufferGetFormatDescription(model),
+          let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee
+    else { return nil }
+    // Interleaved audio is one buffer of whole frames; otherwise there is a buffer per channel.
+    let isInterleaved = asbd.mFormatFlags & kAudioFormatFlagIsNonInterleaved == 0
+    let bufferCount = isInterleaved ? 1 : Int(asbd.mChannelsPerFrame)
+    let byteCount = count * Int(asbd.mBytesPerFrame)
+
+    let list = AudioBufferList.allocate(maximumBuffers: bufferCount)
+    defer { free(list.unsafeMutablePointer) }
+
+    guard let first else {
+        guard let zeros = calloc(byteCount, 1) else { return nil }
+        defer { free(zeros) }
+        for index in 0..<bufferCount {
+            list[index] = AudioBuffer(
+                mNumberChannels: isInterleaved ? asbd.mChannelsPerFrame : 1,
+                mDataByteSize: UInt32(byteCount), mData: zeros
+            )
+        }
+        return CMSampleBuffer.pcm(format, frames: count, at: time, copying: list.unsafePointer)
+    }
+
+    let source = AudioBufferList.allocate(maximumBuffers: bufferCount)
+    defer { free(source.unsafeMutablePointer) }
+    var retained: CMBlockBuffer?
+    guard CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(
+        model, bufferListSizeNeededOut: nil, bufferListOut: source.unsafeMutablePointer,
+        bufferListSize: AudioBufferList.sizeInBytes(maximumBuffers: bufferCount),
+        blockBufferAllocator: kCFAllocatorDefault, blockBufferMemoryAllocator: kCFAllocatorDefault,
+        flags: 0, blockBufferOut: &retained
+    ) == noErr, source.count == bufferCount else { return nil }
+    let offset = first * Int(asbd.mBytesPerFrame)
+    for index in 0..<bufferCount {
+        guard Int(source[index].mDataByteSize) >= offset + byteCount, let data = source[index].mData else { return nil }
+        list[index] = AudioBuffer(
+            mNumberChannels: source[index].mNumberChannels,
+            mDataByteSize: UInt32(byteCount), mData: data + offset
         )
-        return copy
+    }
+    return withExtendedLifetime(retained) {
+        CMSampleBuffer.pcm(format, frames: count, at: time, copying: list.unsafePointer)
+    }
+}
+
+extension CMSampleBuffer {
+    /// A buffer of `frames` PCM frames in `format` starting at `time`, holding a copy of the samples in `list`.
+    static func pcm(_ format: CMAudioFormatDescription, frames: Int, at time: CMTime, copying list: UnsafePointer<AudioBufferList>) -> CMSampleBuffer? {
+        guard let rate = CMAudioFormatDescriptionGetStreamBasicDescription(format)?.pointee.mSampleRate, rate >= 1 else { return nil }
+        var timing = CMSampleTimingInfo(
+            duration: CMTime(value: 1, timescale: CMTimeScale(rate)),
+            presentationTimeStamp: time,
+            decodeTimeStamp: .invalid
+        )
+        var buffer: CMSampleBuffer?
+        guard CMSampleBufferCreate(
+            allocator: kCFAllocatorDefault, dataBuffer: nil, dataReady: false, makeDataReadyCallback: nil, refcon: nil,
+            formatDescription: format, sampleCount: frames,
+            sampleTimingEntryCount: 1, sampleTimingArray: &timing,
+            sampleSizeEntryCount: 0, sampleSizeArray: nil, sampleBufferOut: &buffer
+        ) == noErr, let buffer,
+            CMSampleBufferSetDataBufferFromAudioBufferList(
+                buffer, blockBufferAllocator: kCFAllocatorDefault, blockBufferMemoryAllocator: kCFAllocatorDefault,
+                flags: 0, bufferList: list
+            ) == noErr
+        else { return nil }
+        return buffer
     }
 }

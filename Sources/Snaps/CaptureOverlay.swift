@@ -142,6 +142,7 @@ final class CaptureOverlay {
     }
 
     fileprivate func released(at point: CGPoint) {
+        if allowsArea { dragged(to: point) }
         guard let drag else { return }
         self.drag = nil
 
@@ -708,26 +709,30 @@ private final class OverlayView: NSView {
         trackingArea = area
     }
 
+    private func screenPoint(for event: NSEvent) -> CGPoint {
+        window?.convertPoint(toScreen: event.locationInWindow) ?? NSEvent.mouseLocation
+    }
+
     override func mouseEntered(with event: NSEvent) {
         NSCursor.crosshair.set()
-        owner?.hover(at: NSEvent.mouseLocation)
+        owner?.hover(at: screenPoint(for: event))
     }
 
     override func mouseMoved(with event: NSEvent) {
         NSCursor.crosshair.set()
-        owner?.hover(at: NSEvent.mouseLocation)
+        owner?.hover(at: screenPoint(for: event))
     }
 
     override func mouseDown(with event: NSEvent) {
-        owner?.press(at: NSEvent.mouseLocation, on: screenFrame)
+        owner?.press(at: screenPoint(for: event), on: screenFrame)
     }
 
     override func mouseDragged(with event: NSEvent) {
-        owner?.dragged(to: NSEvent.mouseLocation)
+        owner?.dragged(to: screenPoint(for: event))
     }
 
     override func mouseUp(with event: NSEvent) {
-        owner?.released(at: NSEvent.mouseLocation)
+        owner?.released(at: screenPoint(for: event))
     }
 
     /// A right click backs out, like Escape.

@@ -11,11 +11,12 @@ enum CaptureTarget {
 /// Wraps the system `screencapture` tool. Snaps draws its own picker; this only takes the shot.
 @MainActor
 enum ScreenCapturer {
-    static func capture(_ target: CaptureTarget, settings: AppSettings) async -> URL? {
+    /// - Parameter silent: leaves the shutter sound out even when it's on; screencapture plays it, so a recording would pick it up.
+    static func capture(_ target: CaptureTarget, settings: AppSettings, silent: Bool = false) async -> URL? {
         let url = CaptureStorage.newCaptureURL()
 
         var arguments: [String] = []
-        if !settings.playSound { arguments.append("-x") }
+        if !settings.playSound || silent { arguments.append("-x") }
 
         switch target {
         case .area(let rect):
@@ -91,7 +92,7 @@ enum CaptureStorage {
     }
 
     static func isInCache(_ url: URL) -> Bool {
-        url.standardizedFileURL.path.hasPrefix(cacheDirectory.standardizedFileURL.path)
+        url.deletingLastPathComponent().standardizedFileURL.path == cacheDirectory.standardizedFileURL.path
     }
 
     /// Copies a capture into `folder`, returning the new location.

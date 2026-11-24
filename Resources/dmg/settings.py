@@ -11,7 +11,7 @@ app_name = os.path.basename(app)
 # Contents
 files = [app]
 symlinks = {"Applications": "/Applications"}
-hide_extensions = [app_name]
+# Leave extension display to Finder. Setting it on the signed app adds a FinderInfo attribute.
 
 # Image
 format = "ULFO"  # LZFSE: smaller and faster than zlib; macOS 10.11+

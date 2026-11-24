@@ -56,6 +56,10 @@ final class PreviewManager {
         handedOut.contains(url)
     }
 
+    func dismiss(showing url: URL) {
+        for item in items where item.model.fileURL == url { item.dismiss() }
+    }
+
     func isShowing(_ url: URL) -> Bool {
         items.contains { $0.model.fileURL == url }
     }
@@ -117,6 +121,7 @@ final class PreviewModel: ObservableObject {
     @Published var fileURL: URL
     @Published var isHovering = false
     @Published var isPinned = false
+    @Published var toastSymbol = "checkmark"
     @Published var toast: String?
     @Published var recording: RecordingInfo?
     /// Bumped when the file's contents change in place, so an animated GIF reloads.
@@ -171,17 +176,17 @@ final class PreviewController {
                 save: { [weak self] in self?.saveAndReveal() },
                 open: { [weak self] in self?.open() },
                 annotate: { [weak self] in self?.annotate() },
-                hover: { [weak self] hovering in self?.model.isHovering = hovering },
+                hover: { [weak self] hovering in self?.setHovering(hovering) },
                 dragStarted: { [weak self] in self?.dragStarted() },
                 dragEnded: { [weak self] dropped in self?.dragEnded(dropped: dropped) }
             )
         )
         panel.setContent(card, cornerRadius: Self.cornerRadius)
 
-        model.$isHovering
-            .removeDuplicates()
-            .sink { [weak self] hovering in
-                if hovering { self?.cancelTimer() } else { self?.scheduleTimer() }
+        CaptureHistory.shared.didSave
+            .sink { [weak self] move in
+                guard let self, model.fileURL == move.old else { return }
+                model.fileURL = move.new
             }
             .store(in: &cancellables)
 
@@ -197,6 +202,7 @@ final class PreviewController {
                 guard let self, update.url == self.model.fileURL else { return }
                 self.model.image = update.poster
                 self.model.recording?.duration = update.duration
+                self.model.recording?.source = update.source
                 self.model.revision += 1
             }
             .store(in: &cancellables)
@@ -252,10 +258,10 @@ final class PreviewController {
     }
 
     func setHidden(_ hidden: Bool) {
-        guard !isDismissing else { return }
         if hidden {
+            transferGeneration += 1
             panel.orderOut(nil)
-        } else {
+        } else if !isDismissing {
             panel.orderFrontRegardless()
         }
     }
@@ -272,9 +278,8 @@ final class PreviewController {
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().setFrame(end, display: true)
             panel.animator().alphaValue = 0
-        }, completionHandler: { [weak self] in
+        }, completionHandler: {
             Task { @MainActor in
-                guard let self else { return }
                 self.panel.orderOut(nil)
                 self.panel.close()
                 self.onDismiss?()
@@ -283,6 +288,12 @@ final class PreviewController {
     }
 
     // MARK: Auto-dismiss
+
+    func setHovering(_ hovering: Bool) {
+        guard model.isHovering != hovering else { return }
+        model.isHovering = hovering
+        if hovering { cancelTimer() } else { scheduleTimer() }
+    }
 
     private func scheduleTimer() {
         cancelTimer()
@@ -307,7 +318,10 @@ final class PreviewController {
 
     private func copyAgain() {
         if model.kind.isRecording {
-            Clipboard.copy(fileAt: model.fileURL)
+            guard Clipboard.copy(contentsOf: model.fileURL) else {
+                showToast("Couldn’t copy", symbol: "exclamationmark.triangle")
+                return
+            }
         } else {
             Clipboard.copy(image: model.image, pngURL: model.fileURL)
         }
@@ -319,10 +333,9 @@ final class PreviewController {
             do {
                 let saved = try CaptureStorage.save(model.fileURL, into: AppSettings.shared.saveFolder)
                 CaptureHistory.shared.updateURL(from: model.fileURL, to: saved)
-                model.fileURL = saved
             } catch {
                 NSLog("Snaps: failed to save capture: \(error)")
-                showToast("Couldn’t save")
+                showToast("Couldn’t save", symbol: "exclamationmark.triangle")
                 return
             }
         }
@@ -356,7 +369,6 @@ final class PreviewController {
         } else {
             opened = AnnotationEditor.shared.open(
                 model.fileURL,
-                target: { [weak model] in model?.fileURL },
                 onClose: onClose
             )
         }
@@ -364,7 +376,7 @@ final class PreviewController {
             isEditing = true
             cancelTimer()
         } else {
-            showToast("Couldn’t open")
+            showToast("Couldn’t open", symbol: "exclamationmark.triangle")
         }
     }
 
@@ -386,7 +398,8 @@ final class PreviewController {
         }
     }
 
-    private func showToast(_ message: String) {
+    func showToast(_ message: String, symbol: String = "checkmark") {
+        model.toastSymbol = symbol
         toastTask?.cancel()
         withAnimation(.snappy) { model.toast = message }
         toastTask = Task { @MainActor [weak self] in

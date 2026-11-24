@@ -97,6 +97,9 @@ final class StatusBarController: NSObject {
         let frontmost = NSWorkspace.shared.frontmostApplication
         if frontmost?.processIdentifier != ProcessInfo.processInfo.processIdentifier {
             previousApp = frontmost
+        } else if NSApp.keyWindow?.styleMask.contains(.titled) == true {
+            // Settings or an editor is in front: there is no other app to hand focus back to.
+            previousApp = nil
         }
         AppState.shared.refreshPermission()
         NSApp.activate()

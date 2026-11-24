@@ -30,7 +30,7 @@ final class RecordingController {
     private var ticker: Timer?
     /// Recorded time before the current stretch, and when the current stretch began.
     private var banked: TimeInterval = 0
-    private var stretchStart: Date?
+    private var stretchStart: TimeInterval?
 
     init(previews: PreviewManager) {
         self.previews = previews
@@ -67,7 +67,7 @@ final class RecordingController {
             }
             self.selection = selection
             pointSize = selection.frame.size
-            let options = await makeOptions(for: selection.format)
+            guard let options = await makeOptions(for: selection.format) else { return finishCleanup() }
             self.options = options
             await begin(countdown: settings.recordCountdown)
         }
@@ -75,10 +75,11 @@ final class RecordingController {
 
     // MARK: Recording
 
-    private func makeOptions(for format: RecordingFormat) async -> RecordingOptions {
+    private func makeOptions(for format: RecordingFormat) async -> RecordingOptions? {
         var microphone = format == .video && settings.recordMicrophone
         if microphone {
-            microphone = await Self.microphoneAllowed()
+            guard let allowed = await Self.microphoneAllowed() else { return nil }
+            microphone = allowed
         }
         return RecordingOptions(
             frameRate: format == .gif ? settings.gifFrameRate.rawValue : settings.videoFrameRate.rawValue,
@@ -115,7 +116,7 @@ final class RecordingController {
             return
         }
         banked = 0
-        stretchStart = Date()
+        stretchStart = ProcessInfo.processInfo.systemUptime
         hudModel.state = .recording
         hudModel.isPaused = false
         hudModel.elapsed = 0
@@ -146,11 +147,11 @@ final class RecordingController {
         guard phase == .recording else { return }
         if hudModel.isPaused {
             recorder.resume()
-            stretchStart = Date()
+            stretchStart = ProcessInfo.processInfo.systemUptime
             hudModel.isPaused = false
         } else {
             recorder.pause()
-            banked += stretchStart.map { Date().timeIntervalSince($0) } ?? 0
+            banked += stretchStart.map { ProcessInfo.processInfo.systemUptime - $0 } ?? 0
             stretchStart = nil
             hudModel.isPaused = true
         }
@@ -204,10 +205,15 @@ final class RecordingController {
         }
         let duration = await VideoFrames.info(recorded)?.duration ?? elapsed
 
+        var warnings: [String] = []
+        if format == .video && recorder.savedSeparateAudioTracks {
+            warnings.append("Snaps saved both audio tracks separately. Some players may play only one track.")
+        }
         if settings.saveToFolder {
             do {
                 url = try CaptureStorage.save(url, into: settings.saveFolder)
             } catch {
+                warnings.append("Snaps couldn’t copy the recording to your selected folder.")
                 NSLog("Snaps: failed to save recording: \(error)")
             }
         }
@@ -221,12 +227,23 @@ final class RecordingController {
             let image = poster ?? NSImage(size: pointSize)
             previews.show(image: image, fileURL: url, recording: RecordingInfo(duration: duration, source: source, pointSize: pointSize))
         }
+        if !warnings.isEmpty {
+            let alert = NSAlert()
+            alert.messageText = "Recording saved"
+            alert.informativeText = warnings.joined(separator: "\n\n")
+            alert.addButton(withTitle: "Show in Finder")
+            alert.addButton(withTitle: "Close")
+            NSApp.activate()
+            if alert.runModal() == .alertFirstButtonReturn {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            }
+        }
     }
 
     // MARK: Chrome
 
     private var elapsed: TimeInterval {
-        banked + (stretchStart.map { Date().timeIntervalSince($0) } ?? 0)
+        banked + (stretchStart.map { ProcessInfo.processInfo.systemUptime - $0 } ?? 0)
     }
 
     private func startTicker() {
@@ -356,24 +373,29 @@ final class RecordingController {
 
     // MARK: Permissions and errors
 
-    private static func microphoneAllowed() async -> Bool {
-        switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .authorized:
-            return true
-        case .notDetermined:
-            return await AVCaptureDevice.requestAccess(for: .audio)
-        default:
-            let alert = NSAlert()
-            alert.messageText = "Snaps can’t use the microphone"
-            alert.informativeText = "This recording will be made without it. To record your voice, turn on Snaps in System Settings → Privacy & Security → Microphone."
-            alert.addButton(withTitle: "Record Without")
-            alert.addButton(withTitle: "Open System Settings")
-            NSApp.activate()
-            if alert.runModal() == .alertSecondButtonReturn,
-               let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+    /// Nil cancels this take (including when the user leaves to change permissions).
+    private static func microphoneAllowed() async -> Bool? {
+        let status = AVCaptureDevice.authorizationStatus(for: .audio)
+        if status == .authorized { return true }
+        if status == .notDetermined, await AVCaptureDevice.requestAccess(for: .audio) { return true }
+
+        let alert = NSAlert()
+        alert.messageText = "Microphone access is off"
+        alert.informativeText = "You can record without the microphone, or allow Snaps to use it in System Settings."
+        alert.addButton(withTitle: "Record Without Microphone")
+        alert.addButton(withTitle: "Open System Settings")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate()
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            return false
+        case .alertSecondButtonReturn:
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
                 NSWorkspace.shared.open(url)
             }
-            return false
+            return nil
+        default:
+            return nil
         }
     }
 

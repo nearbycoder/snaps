@@ -9,6 +9,7 @@ final class GalleryController {
 
     private var panel: GlassPanel?
     private var clickMonitor: Any?
+    private var localClickMonitor: Any?
     private(set) var isVisible = false
 
     // Re-open on whichever display the cursor moves to.
@@ -67,6 +68,10 @@ final class GalleryController {
         clickMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] _ in
             Task { @MainActor in self?.hide() }
         }
+        localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self, weak panel] event in
+            if event.window !== panel { self?.hide() }
+            return event
+        }
     }
 
     private func annotate(_ item: CaptureItem) {
@@ -84,7 +89,7 @@ final class GalleryController {
                 )
             }
         } else {
-            AnnotationEditor.shared.open(item.url, target: target)
+            AnnotationEditor.shared.open(item.url)
         }
     }
 
@@ -92,10 +97,11 @@ final class GalleryController {
         guard isVisible, let panel else { return }
         isVisible = false
         follower.stop()
-        if let clickMonitor {
-            NSEvent.removeMonitor(clickMonitor)
-        }
+        if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+        if let localClickMonitor { NSEvent.removeMonitor(localClickMonitor) }
         clickMonitor = nil
+        localClickMonitor = nil
+        panel.ignoresMouseEvents = true
         self.panel = nil
 
         var end = panel.frame
@@ -212,6 +218,7 @@ struct GalleryView: View {
 final class GalleryCardModel: ObservableObject {
     @Published var thumbnail: NSImage?
     @Published var isHovering = false
+    @Published var toastSymbol = "checkmark"
     @Published var toast: String?
     private var toastTask: Task<Void, Never>?
 
@@ -221,7 +228,8 @@ final class GalleryCardModel: ObservableObject {
         }
     }
 
-    func showToast(_ message: String) {
+    func showToast(_ message: String, symbol: String = "checkmark") {
+        toastSymbol = symbol
         toastTask?.cancel()
         withAnimation(.snappy) { toast = message }
         toastTask = Task { @MainActor [weak self] in
@@ -267,7 +275,7 @@ struct GalleryCard: View {
                         .allowsHitTesting(false)
                 }
                 if let toast = model.toast {
-                    Label(toast, systemImage: "checkmark")
+                    Label(toast, systemImage: model.toastSymbol)
                         .font(.system(size: 11, weight: .semibold))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
@@ -287,10 +295,20 @@ struct GalleryCard: View {
                 .padding(.leading, 2)
         }
         .task(id: item.url) { await model.load(item.url) }
+        .onReceive(AnnotationEditor.shared.didUpdate) { update in
+            if update.url == item.url { model.thumbnail = update.image }
+        }
         .onReceive(VideoEditor.shared.didUpdate) { update in
             if update.url == item.url { model.thumbnail = nil; Task { await model.load(item.url) } }
         }
         .help("Click to copy · Drag to share · Double-click to open")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(item.kind == .image ? "Screenshot" : item.kind == .gif ? "GIF" : "Video"), \(item.date.formatted(.relative(presentation: .named)))")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(.default, copy)
+        .accessibilityAction(named: "Open") { onAnnotate(item) }
+        .accessibilityAction(named: CaptureStorage.isInCache(item.url) ? "Save to folder" : "Show in Finder", saveAndReveal)
+        .accessibilityAction(named: "Remove") { CaptureHistory.shared.remove(item) }
     }
 
     private var thumbnail: some View {
@@ -345,7 +363,10 @@ struct GalleryCard: View {
     }
 
     private func copy() {
-        guard Clipboard.copy(contentsOf: item.url) else { return }
+        guard Clipboard.copy(contentsOf: item.url) else {
+            model.showToast("Couldn’t copy", symbol: "exclamationmark.triangle")
+            return
+        }
         model.showToast("Copied")
     }
 
@@ -356,7 +377,7 @@ struct GalleryCard: View {
                 url = try CaptureStorage.save(url, into: AppSettings.shared.saveFolder)
                 CaptureHistory.shared.updateURL(from: item.url, to: url)
             } catch {
-                model.showToast("Couldn’t save")
+                model.showToast("Couldn’t save", symbol: "exclamationmark.triangle")
                 return
             }
         }

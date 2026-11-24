@@ -291,16 +291,14 @@ enum AnnotationRenderer {
     // MARK: Blur
 
     static func drawBlur(_ rect: CGRect, blurred: CGImage?, imageSize: CGSize, in ctx: CGContext) {
-        let shape = CGPath(roundedRect: rect, cornerWidth: 3, cornerHeight: 3, transform: nil)
         ctx.saveGState()
-        ctx.addPath(shape)
-        ctx.clip()
+        ctx.clip(to: rect)
+        // A blurred window edge can have partial alpha. Give it an opaque backing so the
+        // original text underneath cannot show through on the canvas or in the export.
+        ctx.setFillColor(NSColor(white: 0.55, alpha: 1).cgColor)
+        ctx.fill(rect)
         if let blurred {
             drawUpright(blurred, in: CGRect(origin: .zero, size: imageSize), ctx: ctx)
-        } else {
-            // The blurred copy is still rendering; cover the area so nothing leaks meanwhile.
-            ctx.setFillColor(NSColor(white: 0.55, alpha: 1).cgColor)
-            ctx.fill(rect)
         }
         ctx.restoreGState()
     }
