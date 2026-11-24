@@ -523,10 +523,15 @@ private final class PickerView: NSView {
             return
         }
         guard case let .area(rect, screen) = session.selection else { return }
-        var final = rect.integral
-        final.size.width = max(final.width, 16)
-        final.size.height = max(final.height, 16)
-        session.selection = .area(final.intersection(screen.frame), screen: screen)
+        let bounds = screen.frame
+        let width = min(max(rect.width.rounded(), 16), bounds.width)
+        let height = min(max(rect.height.rounded(), 16), bounds.height)
+        let final = CGRect(
+            x: min(max(rect.minX.rounded(), bounds.minX), bounds.maxX - width),
+            y: min(max(rect.minY.rounded(), bounds.minY), bounds.maxY - height),
+            width: width, height: height
+        )
+        session.selection = .area(final, screen: screen)
     }
 
     private func clamp(_ point: CGPoint) -> CGPoint {

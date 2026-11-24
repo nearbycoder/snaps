@@ -23,7 +23,7 @@ final class AnnotationEditor {
 
     /// Fires whenever annotations are written back into a capture file.
     let didUpdate = PassthroughSubject<Update, Never>()
-    /// Fires with the URL a window was opened with, once it has closed.
+    /// Fires with the capture's current URL once its window has closed.
     let didClose = PassthroughSubject<URL, Never>()
 
     private var windows: [EditorWindowController] = []
@@ -33,11 +33,11 @@ final class AnnotationEditor {
 
     /// Opens `url` for annotating, or brings its window forward if it's already open.
     /// - Parameters:
-    ///   - target: where the capture lives when the editor writes to it, in case it moved meanwhile.
     ///   - onClose: called when the window closes; `copied` is true if Done put the result on the clipboard.
     @discardableResult
-    func open(_ url: URL, target: (() -> URL?)? = nil, onClose: ((_ copied: Bool) -> Void)? = nil) -> Bool {
+    func open(_ url: URL, onClose: ((_ copied: Bool) -> Void)? = nil) -> Bool {
         if let existing = windows.first(where: { $0.url == url }) {
+            if let onClose { existing.closeObservers.append(onClose) }
             existing.focus()
             return true
         }
@@ -46,13 +46,14 @@ final class AnnotationEditor {
             return false
         }
 
-        let controller = EditorWindowController(url: url, session: session) { target?() ?? url }
+        let controller = EditorWindowController(url: url, session: session)
+        if let onClose { controller.closeObservers.append(onClose) }
         controller.onClose = { [weak self, weak controller] copied, session, finalURL in
             guard let self, let controller else { return }
             self.windows.removeAll { $0 === controller }
-            self.remember(session, for: finalURL)
-            onClose?(copied)
-            self.didClose.send(url)
+            if FileManager.default.fileExists(atPath: finalURL.path) { self.remember(session, for: finalURL) }
+            for observer in controller.closeObservers { observer(copied) }
+            self.didClose.send(finalURL)
         }
         windows.append(controller)
         controller.show()
@@ -67,6 +68,14 @@ final class AnnotationEditor {
     func forget(_ url: URL) {
         sessions[url] = nil
         sessionOrder.removeAll { $0 == url }
+    }
+
+    func relocate(from old: URL, to new: URL) {
+        if let session = sessions[old] {
+            forget(old)
+            remember(session, for: new)
+        }
+        windows.first { $0.url == old }?.url = new
     }
 
     private func remember(_ session: EditorSession, for url: URL) {
@@ -94,19 +103,18 @@ final class AnnotationEditor {
 
 @MainActor
 final class EditorWindowController: NSObject, NSWindowDelegate {
-    let url: URL
+    var url: URL
+    var closeObservers: [(Bool) -> Void] = []
     var onClose: ((_ copied: Bool, _ session: EditorSession, _ url: URL) -> Void)?
 
-    private let target: () -> URL
     private let model: EditorModel
     private let canvas: AnnotationCanvasView
     private var window: NSWindow?
     private var previousApp: NSRunningApplication?
     private var copiedOnClose = false
 
-    init(url: URL, session: EditorSession, target: @escaping () -> URL) {
+    init(url: URL, session: EditorSession) {
         self.url = url
-        self.target = target
         model = EditorModel(session: session)
         canvas = AnnotationCanvasView(model: model)
         super.init()
@@ -188,8 +196,7 @@ final class EditorWindowController: NSObject, NSWindowDelegate {
         canvas.commitText()
         guard model.hasUnappliedChanges else { return true }
 
-        let url = target()
-        guard let flattened = AnnotationRenderer.flatten(
+        guard FileManager.default.fileExists(atPath: url.path), let flattened = AnnotationRenderer.flatten(
             model.image,
             pointSize: model.imageSize,
             annotations: model.annotations,
@@ -214,7 +221,6 @@ final class EditorWindowController: NSObject, NSWindowDelegate {
 
     private func copy() {
         guard apply() else { return }
-        let url = target()
         guard let image = NSImage(contentsOf: url) else {
             model.showToast("Couldn’t copy")
             return
@@ -228,7 +234,6 @@ final class EditorWindowController: NSObject, NSWindowDelegate {
         let changed = model.hasUnappliedChanges
         guard apply() else { return }
         if changed, AppSettings.shared.copyToClipboard {
-            let url = target()
             if let image = NSImage(contentsOf: url) {
                 Clipboard.copy(image: image, pngURL: url)
                 copiedOnClose = true
@@ -244,7 +249,7 @@ final class EditorWindowController: NSObject, NSWindowDelegate {
         canvas.commitText()
         let closing = window
         let othersVisible = NSApp.windows.contains { $0 !== closing && $0.isVisible && $0.styleMask.contains(.titled) }
-        onClose?(copiedOnClose, model.session, target())
+        onClose?(copiedOnClose, model.session, url)
         // Hand focus back, so ⌘V lands in the app the capture was meant for.
         if !othersVisible {
             previousApp?.activate()
@@ -447,7 +452,12 @@ final class EditorModel: ObservableObject {
     }
 
     private func annotationsChanged() {
-        if let selectedID, annotation(selectedID) == nil { select(nil) }
+        if let selected, selected.kind != .blur {
+            if color != selected.color { color = selected.color }
+            if size != selected.size { size = selected.size }
+        } else if selectedID != nil && selected == nil {
+            select(nil)
+        }
         if isEmpty != annotations.isEmpty { isEmpty = annotations.isEmpty }
         onDisplay?()
     }

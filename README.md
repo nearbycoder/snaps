@@ -73,7 +73,7 @@ Double-click a preview or a gallery card, or click its pencil, to open the captu
 | Select | V | Click an annotation to select it, drag to move it, Delete to remove it |
 | Arrow | A | Drag from the tail to the tip. Hold Shift to snap to 45° |
 | Text | T | Click and type. Return finishes, Shift Return adds a line |
-| Blur | B | Drag over anything you want to hide. It's pixelated, then softened, so it can't be recovered |
+| Blur | B | Drag over an area to pixelate and soften it. Snaps flattens the blur into the exported image. |
 
 - Pick a color and a size before drawing, or select an annotation and change them. Blur ignores both.
 - Drag the handles of a selected arrow or blur to reshape it. Arrow keys nudge the selection (Shift for 10 points).
@@ -89,7 +89,7 @@ Press ⌃⇧6 for a video or ⌃⇧7 for a GIF, or click **Record Video** / **Re
 - **Click** without dragging to record the whole display.
 - Press **Space**, then click a window to record just that window, wherever it goes.
 
-A glass bar under the selection shows its size and lets you switch between **Video** and **GIF** and turn the **microphone** and **computer audio** on or off. Press **Return** or click **Record**; **Esc** cancels.
+A glass bar under the selection shows its size and lets you switch between **Video** and **GIF** and turn the **microphone** and **computer audio** on or off. Press **Return** or click **Record**; **Esc** cancels. With both audio inputs enabled, Snaps mixes them into one stereo track and limits overlapping peaks. Use headphones to keep speaker playback out of the microphone.
 
 After a 3-second countdown (click it to start right away), a dashed outline marks the area and glass controls float beside it with the time, **pause / resume**, **start over**, **discard** and **stop**. The menu bar icon turns into a red timer; click it, or press the shortcut again, to stop. Snaps' own windows (the controls, the outline, previews) never appear in the recording.
 

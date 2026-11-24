@@ -118,6 +118,17 @@ if [[ ! -x build/.venv/bin/dmgbuild ]]; then
 fi
 build/.venv/bin/dmgbuild -s Resources/dmg/settings.py -D app="$APP" \
   "Snaps" "$OUT/Snaps-$VERSION.dmg" >/dev/null 2>&1
+
+# Installer styling can change bundle metadata after the app was signed.
+echo "→ Verifying the app inside the disk image"
+(
+  mount_dir="$(mktemp -d "${TMPDIR:-/tmp}/snaps-dmg.XXXXXX")"
+  trap 'rmdir "$mount_dir"' EXIT
+  hdiutil attach -readonly -nobrowse -noautoopen -mountpoint "$mount_dir" "$OUT/Snaps-$VERSION.dmg" >/dev/null
+  trap 'hdiutil detach "$mount_dir" >/dev/null && rmdir "$mount_dir"' EXIT
+  codesign --verify --deep --strict "$mount_dir/Snaps.app"
+)
+
 # Version-less copy so …/releases/latest/download/Snaps.dmg always points at the newest build.
 cp "$OUT/Snaps-$VERSION.dmg" "$OUT/Snaps.dmg"
 (cd "$OUT" && shasum -a 256 "Snaps-$VERSION.dmg" "Snaps.dmg" "Snaps-$VERSION.zip" > SHA256SUMS.txt)

@@ -12,6 +12,7 @@ final class VideoEditor {
         let url: URL
         let poster: NSImage
         let duration: Double
+        let source: URL?
     }
 
     /// Fires when a recording file is rewritten in place.
@@ -34,7 +35,8 @@ final class VideoEditor {
         target: (() -> URL?)? = nil,
         onClose: ((_ copied: Bool) -> Void)? = nil
     ) -> Bool {
-        if let existing = windows.first(where: { $0.url == url }) {
+        if let existing = windows.first(where: { $0.url == url || $0.currentURL == url }) {
+            if let onClose { existing.closeObservers.append(onClose) }
             existing.focus()
             return true
         }
@@ -43,10 +45,10 @@ final class VideoEditor {
             NSSound.beep()
             return false
         }
-        let controller = VideoEditorWindowController(url: url, video: video, pointSize: pointSize) { target?() ?? url }
-        controller.onClose = { [weak self, weak controller] copied in
+        let controller = VideoEditorWindowController(url: url, video: video, pointSize: pointSize, target: target)
+        if let onClose { controller.closeObservers.append(onClose) }
+        controller.closeObservers.append { [weak self, weak controller] _ in
             self?.windows.removeAll { $0 === controller }
-            onClose?(copied)
         }
         windows.append(controller)
         controller.show()
@@ -105,11 +107,15 @@ final class VideoEditorModel: ObservableObject {
 @MainActor
 final class VideoEditorWindowController: NSObject, NSWindowDelegate {
     let url: URL
-    var onClose: ((_ copied: Bool) -> Void)?
+    var closeObservers: [(Bool) -> Void] = []
+    var currentURL: URL { target?() ?? lastKnownURL }
+    private var lastKnownURL: URL
+    private var saveObservation: AnyCancellable?
 
-    private let video: URL
+    private var gifSource: URL?
+    private var video: URL { gifSource ?? currentURL }
     private let pointSize: CGSize
-    private let target: () -> URL
+    private let target: (() -> URL?)?
     private let model: VideoEditorModel
     private let playerView = EditorPlayerView()
     private var window: NSWindow?
@@ -118,13 +124,18 @@ final class VideoEditorWindowController: NSObject, NSWindowDelegate {
     private var statusObservation: NSKeyValueObservation?
     private let settings = AppSettings.shared
 
-    init(url: URL, video: URL, pointSize: CGSize, target: @escaping () -> URL) {
+    init(url: URL, video: URL, pointSize: CGSize, target: (() -> URL?)?) {
         self.url = url
-        self.video = video
+        lastKnownURL = url
+        gifSource = CaptureKind(url) == .gif ? video : nil
         self.pointSize = pointSize
         self.target = target
         model = VideoEditorModel(output: CaptureKind(url) == .gif ? .gif : .video)
         super.init()
+        saveObservation = CaptureHistory.shared.didSave.sink { [weak self] move in
+            guard let self, lastKnownURL == move.old else { return }
+            lastKnownURL = move.new
+        }
         playerView.controlsStyle = .inline
         playerView.showsFullScreenToggleButton = false
         playerView.showsSharingServiceButton = false
@@ -152,6 +163,7 @@ final class VideoEditorWindowController: NSObject, NSWindowDelegate {
         window.toolbar = NSToolbar(identifier: "VideoEditor")
         window.toolbarStyle = .unified
         window.isReleasedWhenClosed = false
+        window.collectionBehavior = [.moveToActiveSpace]
         window.tabbingMode = .disallowed
         window.minSize = NSSize(width: 760, height: 440)
         window.delegate = self
@@ -178,7 +190,7 @@ final class VideoEditorWindowController: NSObject, NSWindowDelegate {
     }
 
     func focus() {
-        NSApp.activate()
+        NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
         window?.orderFrontRegardless()
     }
@@ -200,7 +212,7 @@ final class VideoEditorWindowController: NSObject, NSWindowDelegate {
     private func load() {
         let item = AVPlayerItem(url: video)
         let player = AVPlayer(playerItem: item)
-        player.isMuted = model.isMuted
+        player.isMuted = model.isMuted || model.output == .gif
         playerView.player = player
         model.isReady = false
         statusObservation = item.observe(\.status, options: [.initial, .new]) { [weak self] item, _ in
@@ -215,6 +227,7 @@ final class VideoEditorWindowController: NSObject, NSWindowDelegate {
     private func itemReady(_ item: AVPlayerItem) async {
         let duration = (try? await item.asset.load(.duration))?.seconds ?? 0
         let audio = (try? await item.asset.loadTracks(withMediaType: .audio)) ?? []
+        guard duration.isFinite, duration > 0 else { return }
         model.duration = duration
         model.trimStart = 0
         model.trimEnd = duration
@@ -257,23 +270,30 @@ final class VideoEditorWindowController: NSObject, NSWindowDelegate {
     /// Writes the trim (and mute) into the recording. Returns false if that failed.
     private func apply() async -> Bool {
         guard model.hasChanges else { return true }
-        let url = target()
+        let url = currentURL
         let temp = CaptureStorage.temporaryURL(pathExtension: model.output.pathExtension, replacing: url)
         model.busy = model.output == .gif ? "Making GIF…" : "Saving…"
         defer { model.busy = nil }
+        var editedSource: URL?
         do {
             switch model.output {
             case .gif:
+                let source = CaptureStorage.newRecordingSourceURL()
+                editedSource = source
+                try await MediaExport.exportVideo(from: video, to: source, range: model.range, includeAudio: false)
                 try await MediaExport.makeGIF(
-                    from: video, to: temp, range: model.range,
+                    from: source, to: temp,
                     frameRate: settings.gifFrameRate.rawValue, maxWidth: gifMaxWidth
                 )
             default:
                 try await MediaExport.exportVideo(from: video, to: temp, range: model.range, includeAudio: !model.isMuted)
             }
+            // A folder save can relocate this capture while the export is running.
+            guard currentURL == url else { throw CocoaError(.fileWriteFileExists) }
             _ = try FileManager.default.replaceItemAt(url, withItemAt: temp)
         } catch {
             NSLog("Snaps: failed to save recording edits: \(error)")
+            if let editedSource { try? FileManager.default.removeItem(at: editedSource) }
             try? FileManager.default.removeItem(at: temp)
             model.showToast("Couldn’t save")
             return false
@@ -282,34 +302,32 @@ final class VideoEditorWindowController: NSObject, NSWindowDelegate {
         let duration = model.trimEnd - model.trimStart
         let poster = model.output == .gif ? NSImage(contentsOf: url) : await VideoFrames.poster(url)
         Thumbnails.evict(url)
-        CaptureHistory.shared.updateDuration(of: url, to: duration)
-        if let poster {
-            VideoEditor.shared.didUpdate.send(.init(url: url, poster: poster, duration: duration))
-        }
-        if model.output == .video {
-            // The file under the player changed; start over from the edited version.
-            model.isMuted = false
-            load()
-        }
+        gifSource = editedSource
+        CaptureHistory.shared.updateRecording(at: url, duration: duration, source: editedSource)
+        VideoEditor.shared.didUpdate.send(.init(url: url, poster: poster ?? NSImage(size: pointSize), duration: duration, source: editedSource))
+        model.isMuted = false
+        load()
         return true
     }
 
     private func copy() {
-        guard model.busy == nil else { return }
+        guard model.busy == nil, model.isReady else { return }
         Task { @MainActor in
+            guard model.busy == nil, model.isReady else { return }
             guard await apply() else { return }
-            Clipboard.copy(fileAt: target())
+            Clipboard.copy(fileAt: currentURL)
             model.showToast("Copied")
         }
     }
 
     private func done() {
-        guard model.busy == nil else { return }
+        guard model.busy == nil, model.isReady else { return }
         Task { @MainActor in
+            guard model.busy == nil, model.isReady else { return }
             let changed = model.hasChanges
             guard await apply() else { return }
             if changed, settings.copyToClipboard {
-                Clipboard.copy(fileAt: target())
+                Clipboard.copy(fileAt: currentURL)
                 copiedOnClose = true
             }
             window?.close()
@@ -327,17 +345,21 @@ final class VideoEditorWindowController: NSObject, NSWindowDelegate {
             var source: URL?
             do {
                 if makingGIF {
-                    try await MediaExport.makeGIF(
-                        from: video, to: url, range: model.range,
-                        frameRate: settings.gifFrameRate.rawValue, maxWidth: gifMaxWidth
-                    )
-                    // Keep the video so the GIF can be trimmed again later (a clone, so it's instant and free).
                     let copy = CaptureStorage.newRecordingSourceURL()
-                    if (try? FileManager.default.copyItem(at: video, to: copy)) != nil { source = copy }
+                    source = copy
+                    if model.isTrimmed || model.hasAudio {
+                        try await MediaExport.exportVideo(from: video, to: copy, range: model.range, includeAudio: false)
+                    } else {
+                        try FileManager.default.copyItem(at: video, to: copy)
+                    }
+                    try await MediaExport.makeGIF(
+                        from: copy, to: url, frameRate: settings.gifFrameRate.rawValue, maxWidth: gifMaxWidth
+                    )
                 } else {
                     try await MediaExport.exportVideo(from: video, to: url, range: model.range, includeAudio: false)
                 }
             } catch {
+                if let source { try? FileManager.default.removeItem(at: source) }
                 NSLog("Snaps: failed to convert recording: \(error)")
                 try? FileManager.default.removeItem(at: url)
                 model.showToast("Couldn’t save")
@@ -370,7 +392,8 @@ final class VideoEditorWindowController: NSObject, NSWindowDelegate {
         playerView.player?.pause()
         let closing = window
         let othersVisible = NSApp.windows.contains { $0 !== closing && $0.isVisible && $0.styleMask.contains(.titled) }
-        onClose?(copiedOnClose)
+        closeObservers.forEach { $0(copiedOnClose) }
+        closeObservers.removeAll()
         if !othersVisible {
             previousApp?.activate()
         }

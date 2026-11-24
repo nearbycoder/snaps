@@ -72,9 +72,15 @@ enum MediaExport {
         let isHEVC = try await videoTracks[0].load(.formatDescriptions).contains {
             CMFormatDescriptionGetMediaSubType($0) == kCMVideoCodecType_HEVC
         }
-        let preset = isHEVC ? AVAssetExportPresetHEVCHighestQuality : AVAssetExportPresetHighestQuality
+        let trimmed = range.start > .zero || range.end < duration
+        let quality = isHEVC ? AVAssetExportPresetHEVCHighestQuality : AVAssetExportPresetHighestQuality
+        let preset = trimmed ? quality : AVAssetExportPresetPassthrough
         guard let session = AVAssetExportSession(asset: composition, presetName: preset) else {
             throw MediaExportError.cannotWrite
+        }
+        if trimmed {
+            // Render the selected range so hidden frames from the preceding GOP cannot survive a cut.
+            session.videoComposition = try await AVVideoComposition.videoComposition(withPropertiesOf: composition)
         }
         session.shouldOptimizeForNetworkUse = true
         try? FileManager.default.removeItem(at: output)
@@ -111,12 +117,14 @@ enum MediaExport {
     }
 
     /// Mixes a recording's separate system audio and microphone tracks into one, copying the video as is.
+    /// Both keep their level; a limiter catches the moments their sum would go over full scale.
     static func mixAudioTracks(_ url: URL) async throws {
         let asset = AVURLAsset(url: url)
         let audioTracks = try await asset.loadTracks(withMediaType: .audio)
         guard audioTracks.count > 1, let videoTrack = try await asset.loadTracks(withMediaType: .video).first else { return }
         let formatHint = try await videoTrack.load(.formatDescriptions).first
         let temp = CaptureStorage.temporaryURL(pathExtension: "mp4", replacing: url)
+        defer { try? FileManager.default.removeItem(at: temp) }
 
         try await Task.detached(priority: .userInitiated) {
             let reader = try AVAssetReader(asset: asset)
@@ -149,11 +157,11 @@ enum MediaExport {
 
             guard reader.startReading(), writer.startWriting() else { throw MediaExportError.cannotWrite }
             writer.startSession(atSourceTime: .zero)
-            async let video: Void = pump(videoOutput, into: videoInput, label: "video")
-            async let audio: Void = pump(audioOutput, into: audioInput, label: "audio")
-            _ = await (video, audio)
+            async let video = pump(videoOutput, into: videoInput, label: "video")
+            async let audio = pump(audioOutput, into: audioInput, label: "audio", limiter: PeakLimiter(rate: 48_000, channels: 2))
+            let (videoOK, audioOK) = await (video, audio)
             await writer.finishWriting()
-            guard reader.status == .completed, writer.status == .completed else {
+            guard videoOK, audioOK, reader.status == .completed, writer.status == .completed else {
                 throw writer.error ?? reader.error ?? MediaExportError.cannotWrite
             }
         }.value
@@ -161,21 +169,152 @@ enum MediaExport {
         _ = try FileManager.default.replaceItemAt(url, withItemAt: temp)
     }
 
-    private static func pump(_ output: AVAssetReaderOutput, into input: AVAssetWriterInput, label: String) async {
+    private static func pump(_ output: AVAssetReaderOutput, into input: AVAssetWriterInput, label: String, limiter: PeakLimiter? = nil) async -> Bool {
         let queue = DispatchQueue(label: "dev.nearby.Snaps.mix.\(label)")
         nonisolated(unsafe) let output = output
         nonisolated(unsafe) let input = input
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        nonisolated(unsafe) let limiter = limiter
+        return await withCheckedContinuation { continuation in
             input.requestMediaDataWhenReady(on: queue) {
                 while input.isReadyForMoreMediaData {
-                    guard let buffer = output.copyNextSampleBuffer(), input.append(buffer) else {
+                    let next = output.copyNextSampleBuffer()
+                    // The limiter holds a little back; a nil buffer asks it for the rest.
+                    do {
+                        let buffer: CMSampleBuffer?
+                        if let limiter {
+                            buffer = try limiter.limit(next)
+                        } else {
+                            buffer = next
+                        }
+                        if let buffer, !input.append(buffer) { throw MediaExportError.cannotWrite }
+                        if next == nil {
+                            input.markAsFinished()
+                            continuation.resume(returning: true)
+                            return
+                        }
+                    } catch {
                         input.markAsFinished()
-                        continuation.resume()
+                        continuation.resume(returning: false)
                         return
                     }
                 }
             }
         }
+    }
+}
+
+/// Keeps mixed audio under full scale. Two sources that each fit can add up to twice full scale, which
+/// clips when it's played. This turns the level down just ahead of a peak that would go over and lets it
+/// back up afterwards; audio that already fits passes through untouched.
+final class PeakLimiter {
+    /// −1 dBFS, which leaves room for the encoder's own overshoot.
+    private let ceiling: Float = 0.89
+    private let rate: Double
+    private let channels: Int
+    /// How many frames ahead a peak is seen. The audio is held back by as much, then handed on unshifted.
+    private let lookahead: Int
+    private let attack: Float
+    private let release: Float
+
+    /// The frames held back, interleaved, and the gain each of them needs.
+    private var held: [Float]
+    private var needed: [Float]
+    private var cursor = 0
+    private var isFull = false
+    private var gain: Float = 1
+    /// The lowest gain needed by the frames held back, give or take: what `gain` heads for.
+    private var target: Float = 1
+    private var targetAge = 0
+
+    private var format: CMAudioFormatDescription?
+    private var start = CMTime.zero
+    private var framesOut: Int64 = 0
+
+    init(rate: Double, channels: Int) {
+        self.rate = rate
+        self.channels = channels
+        lookahead = max(1, Int(rate * 0.005))
+        // Within 1% of the target by the time the peak comes through, then back up over a fifth of a second.
+        attack = 1 - exp(-4.6 / Float(lookahead))
+        release = 1 - exp(-1 / Float(rate * 0.2))
+        held = [Float](repeating: 0, count: lookahead * channels)
+        needed = [Float](repeating: 1, count: lookahead)
+    }
+
+    /// Takes the next buffer of interleaved float samples, or nil at the end, and returns the next limited one, if any is ready.
+    func limit(_ buffer: CMSampleBuffer?) throws -> CMSampleBuffer? {
+        var samples: [Float]
+        if let buffer {
+            guard let data = CMSampleBufferGetDataBuffer(buffer) else { throw MediaExportError.cannotRead }
+            if format == nil {
+                format = CMSampleBufferGetFormatDescription(buffer)
+                start = CMSampleBufferGetPresentationTimeStamp(buffer)
+            }
+            samples = [Float](repeating: 0, count: CMBlockBufferGetDataLength(data) / MemoryLayout<Float>.size)
+            guard !samples.isEmpty else { return nil }
+            let status = samples.withUnsafeMutableBytes {
+                CMBlockBufferCopyDataBytes(data, atOffset: 0, dataLength: $0.count, destination: $0.baseAddress!)
+            }
+            guard status == noErr else { throw MediaExportError.cannotRead }
+        } else {
+            // Silence pushes out what's still held back.
+            samples = [Float](repeating: 0, count: lookahead * channels)
+        }
+
+        var limited = process(samples)
+        let frames = limited.count / channels
+        guard frames > 0, let format else { return nil }
+        let time = start + CMTime(value: framesOut, timescale: CMTimeScale(rate))
+        framesOut += Int64(frames)
+        let output = limited.withUnsafeMutableBytes { bytes in
+            var list = AudioBufferList(
+                mNumberBuffers: 1,
+                mBuffers: AudioBuffer(mNumberChannels: UInt32(channels), mDataByteSize: UInt32(bytes.count), mData: bytes.baseAddress)
+            )
+            return CMSampleBuffer.pcm(format, frames: frames, at: time, copying: &list)
+        }
+        guard let output else { throw MediaExportError.cannotWrite }
+        return output
+    }
+
+    /// Takes interleaved frames in, and returns the frames that came in `lookahead` frames earlier, limited.
+    func process(_ input: [Float]) -> [Float] {
+        var output: [Float] = []
+        output.reserveCapacity(input.count)
+        var index = 0
+        while index + channels <= input.count {
+            var peak: Float = 0
+            for channel in 0..<channels { peak = max(peak, abs(input[index + channel])) }
+            let need = peak > ceiling ? ceiling / peak : 1
+
+            // Head for the gain this frame needs, and stay there until it has gone through.
+            if need <= target {
+                target = need
+                targetAge = 0
+            } else if targetAge < lookahead {
+                targetAge += 1
+            } else {
+                target = need
+            }
+            gain += (target - gain) * (target < gain ? attack : release)
+            if target == 1, gain > 0.9999 { gain = 1 }
+
+            let slot = cursor * channels
+            if isFull {
+                // Never more than the frame itself needs, however far `gain` has got.
+                let applied = min(gain, needed[cursor])
+                for channel in 0..<channels { output.append(held[slot + channel] * applied) }
+            }
+            for channel in 0..<channels { held[slot + channel] = input[index + channel] }
+            needed[cursor] = need
+            cursor += 1
+            if cursor == lookahead {
+                cursor = 0
+                isFull = true
+            }
+            index += channels
+        }
+        return output
     }
 }
 
@@ -217,8 +356,10 @@ private enum GIFWriter {
         defer { if !finished { gif.abandon() } }
 
         // Each frame shows from the first tick at or after its time until the next kept frame's tick.
-        var held: (image: CGImage, tick: Int)?
-        func add(_ image: CGImage, from start: Int, to end: Int) throws {
+        // Only frames that are kept get drawn: a later frame landing on the same tick replaces the held one.
+        var held: (buffer: CVPixelBuffer, tick: Int)?
+        func add(_ buffer: CVPixelBuffer, from start: Int, to end: Int) throws {
+            guard let image = render(buffer, into: context) else { throw MediaExportError.cannotRead }
             let centiseconds = Int((Double(end) * 100 / fps).rounded()) - Int((Double(start) * 100 / fps).rounded())
             try gif.add(image, delay: max(centiseconds, 2))
         }
@@ -228,17 +369,16 @@ private enum GIFWriter {
             let time = (CMSampleBufferGetPresentationTimeStamp(sample) - range.start).seconds
             let tick = max(0, Int((time * fps - 0.001).rounded(.up)))
             if tick >= tickCount { break }
-            // A later frame landing on the same tick replaces the held one.
             if let current = held, current.tick < tick {
-                try add(current.image, from: current.tick, to: tick)
+                try add(current.buffer, from: current.tick, to: tick)
             }
-            guard let image = render(pixelBuffer, into: context) else { continue }
-            held = (image, tick)
+            held = (pixelBuffer, tick)
             progress?(min(1, time / max(total, 0.001)))
         }
+        guard reader.status != .failed else { throw reader.error ?? MediaExportError.cannotRead }
         reader.cancelReading()
         guard let last = held else { throw MediaExportError.noVideo }
-        try add(last.image, from: last.tick, to: max(tickCount, last.tick + 1))
+        try add(last.buffer, from: last.tick, to: max(tickCount, last.tick + 1))
         try gif.finish()
         finished = true
         progress?(1)

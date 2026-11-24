@@ -1,5 +1,6 @@
 import AVFoundation
 import AppKit
+import Combine
 import ImageIO
 
 enum CaptureKind: String, Codable {
@@ -47,6 +48,9 @@ final class CaptureHistory: ObservableObject {
 
     @Published private(set) var items: [CaptureItem] = []
 
+    let didSave = PassthroughSubject<(old: URL, new: URL), Never>()
+    let didDelete = PassthroughSubject<URL, Never>()
+
     private let limit = 60
     private let storeURL: URL = {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -84,6 +88,7 @@ final class CaptureHistory: ObservableObject {
 
     /// Keeps the history pointing at a capture after it's been saved somewhere else.
     func updateURL(from old: URL, to new: URL) {
+        defer { didSave.send((old, new)) }
         guard let index = items.firstIndex(where: { $0.url == old }) else { return }
         items[index].url = new
         save()
@@ -94,19 +99,23 @@ final class CaptureHistory: ObservableObject {
     }
 
     /// Records a recording's new length after it's been trimmed.
-    func updateDuration(of url: URL, to duration: Double) {
+    func updateRecording(at url: URL, duration: Double, source: URL?) {
         guard let index = items.firstIndex(where: { $0.url == url }) else { return }
         items[index].duration = duration
+        items[index].source = source
         save()
     }
 
     /// Removes an item; the file is deleted only if it was never saved out of the cache.
     func remove(_ item: CaptureItem) {
-        items.removeAll { $0.id == item.id }
+        guard let index = items.firstIndex(where: { $0.id == item.id }) else { return }
+        let item = items.remove(at: index)
         if CaptureStorage.isInCache(item.url) {
             try? FileManager.default.removeItem(at: item.url)
+            didDelete.send(item.url)
         }
-        if let source = item.source {
+        if let source = item.source,
+           source.deletingLastPathComponent().standardizedFileURL.path == CaptureStorage.recordingSourcesDirectory.standardizedFileURL.path {
             try? FileManager.default.removeItem(at: source)
         }
         Thumbnails.evict(item.url)
